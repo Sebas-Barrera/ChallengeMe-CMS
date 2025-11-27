@@ -1,0 +1,11 @@
+{
+  "mcpServers": {
+    "supabase": {
+      "type": "http",
+      "url": "http://127.0.0.1:54321/mcp",
+      "headers": {
+        "Authorization": "Bearer YOUR_SUPABASE_LOCAL_TOKEN_HERE"
+      }
+    }
+  }
+}
