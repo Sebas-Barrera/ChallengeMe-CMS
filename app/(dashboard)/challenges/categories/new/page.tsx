@@ -22,7 +22,7 @@ interface Translation {
 
 interface FormData {
   game_mode_id: string;
-  icon: string;
+  icon: string | null;
   text_color: string;
   min_players: number;
   max_players: number;
@@ -30,6 +30,27 @@ interface FormData {
   age_rating: 'ALL' | 'TEEN' | 'ADULT';
   is_premium: boolean;
   is_active: boolean;
+}
+
+interface CSVTranslation {
+  title: string;
+  description: string | null;
+  instructions: string | null;
+  tags: string | null;
+}
+
+interface CSVCategory {
+  categoryData: FormData;
+  translations: Record<string, CSVTranslation | null>;
+}
+
+interface CategoryTranslationInsert {
+  challenge_category_id: string;
+  language_code: string;
+  title: string;
+  description: string | null;
+  instructions: string | null;
+  tags: string[] | null;
 }
 
 export default function NewCategoryPage() {
@@ -337,7 +358,7 @@ export default function NewCategoryPage() {
       }
 
       // Parsear datos
-      const categories: any[] = [];
+      const categories: CSVCategory[] = [];
       for (let i = 1; i < lines.length; i++) {
         const line = lines[i];
         const values = parseCSVLine(line);
@@ -890,49 +911,7 @@ mic,#FFFFFF,2,8,#9333EA,#C026D3,TEEN,false,true,Retos Musicales,Musical Challeng
                 </div>
               </div>
 
-              {/* Instrucciones */}
-              <div className="mb-6 p-4 bg-bg-tertiary/50 rounded-xl border border-border">
-                <h3 className="text-sm font-semibold text-text-primary mb-2">
-                  📋 Formato del CSV
-                </h3>
-                <p className="text-xs text-text-secondary mb-3">
-                  El archivo debe tener estas columnas (en orden):
-                </p>
-                <code className="text-xs text-brand-purple block p-2 bg-bg-primary rounded border border-border overflow-x-auto">
-                  icon,text_color,min_players,max_players,gradient_color1,gradient_color2,age_rating,is_premium,is_active,title_es,title_en,...
-                </code>
-                <p className="text-xs text-text-secondary mt-3">
-                  <strong>Campos requeridos:</strong> title_es, title_en, min_players,
-                  max_players, gradient_color1, gradient_color2, age_rating
-                </p>
-                <p className="text-xs text-text-secondary mt-1">
-                  <strong>age_rating:</strong> Debe ser ALL, TEEN o ADULT
-                </p>
-              </div>
 
-              {/* Botón de descarga */}
-              <div className="mb-6">
-                <button
-                  type="button"
-                  onClick={downloadExampleCSV}
-                  className="w-full py-3 px-4 bg-bg-tertiary hover:bg-border border border-border rounded-xl text-text-primary font-medium transition-colors flex items-center justify-center gap-2"
-                >
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
-                    />
-                  </svg>
-                  Descargar ejemplo.csv
-                </button>
-              </div>
 
               {/* Input de archivo */}
               <div>

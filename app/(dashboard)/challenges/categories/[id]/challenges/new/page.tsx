@@ -170,7 +170,7 @@ export default function NewChallengePage({ params }: PageProps) {
             es: row.content_es,
             en: row.content_en,
             fr: row.content_fr || '',
-            de: row.content_de || '',
+            it: row.content_it || '',
             pt: row.content_pt || '',
           }
         });

@@ -224,25 +224,46 @@ export default function CategoriesPage() {
                 </div>
               </div>
 
-              <Link href="/challenges/categories/new">
-                <button className="px-5 py-2.5 bg-brand-yellow hover:bg-brand-yellow/90 text-black font-semibold rounded-xl transition-all duration-200 flex items-center gap-2 shadow-lg shadow-brand-yellow/20 hover:shadow-brand-yellow/30 hover:scale-105">
-                  <svg
-                    className="w-5 h-5"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M12 4v16m8-8H4"
-                    />
-                  </svg>
-                  <span className="hidden sm:inline">Nueva Categoría</span>
-                  <span className="sm:hidden">Nueva</span>
-                </button>
-              </Link>
+              <div className="flex items-center gap-3">
+                <Link href="/challenges/bulk-upload">
+                  <button className="px-5 py-2.5 bg-brand-purple hover:bg-brand-purple/90 text-white font-semibold rounded-xl transition-all duration-200 flex items-center gap-2 shadow-lg shadow-brand-purple/20 hover:shadow-brand-purple/30 hover:scale-105">
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                      />
+                    </svg>
+                    <span className="hidden sm:inline">Upload Retos</span>
+                    <span className="sm:hidden">Upload</span>
+                  </button>
+                </Link>
+                <Link href="/challenges/categories/new">
+                  <button className="px-5 py-2.5 bg-brand-yellow hover:bg-brand-yellow/90 text-black font-semibold rounded-xl transition-all duration-200 flex items-center gap-2 shadow-lg shadow-brand-yellow/20 hover:shadow-brand-yellow/30 hover:scale-105">
+                    <svg
+                      className="w-5 h-5"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M12 4v16m8-8H4"
+                      />
+                    </svg>
+                    <span className="hidden sm:inline">Nueva Categoría</span>
+                    <span className="sm:hidden">Nueva</span>
+                  </button>
+                </Link>
+              </div>
             </div>
           </div>
         </header>
@@ -508,10 +529,10 @@ export default function CategoriesPage() {
                     {/* Contenido */}
                     <div className="p-6">
                       <h3 className="text-xl font-bold text-text-primary mb-2 group-hover:text-brand-yellow transition-colors">
-                        {category.translations.es.title}
+                        {category.translations.es?.title || category.translations.en?.title || 'Sin título'}
                       </h3>
                       <p className="text-sm text-text-secondary mb-4 line-clamp-2">
-                        {category.translations.es.description}
+                        {category.translations.es?.description || category.translations.en?.description || 'Sin descripción'}
                       </p>
 
                       {/* Metadata */}
@@ -540,6 +561,35 @@ export default function CategoriesPage() {
                               {lang.toUpperCase()}
                             </span>
                           ))}
+                        </div>
+                      </div>
+
+                      {/* ID de la categoría */}
+                      <div className="mb-4 p-3 bg-bg-tertiary border border-border rounded-lg">
+                        <div className="flex items-center justify-between gap-2">
+                          <div className="flex-1 min-w-0">
+                            <p className="text-xs font-medium text-text-tertiary mb-1">Category ID:</p>
+                            <p className="text-xs font-mono text-text-secondary truncate">{category.id}</p>
+                          </div>
+                          <button
+                            onClick={() => {
+                              navigator.clipboard.writeText(category.id);
+                              const btn = document.getElementById(`copy-${category.id}`);
+                              if (btn) {
+                                btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M5 13l4 4L19 7"></path></svg>';
+                                setTimeout(() => {
+                                  btn.innerHTML = '<svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z"></path></svg>';
+                                }, 1500);
+                              }
+                            }}
+                            id={`copy-${category.id}`}
+                            className="p-2 bg-brand-yellow/10 hover:bg-brand-yellow/20 border border-brand-yellow/30 text-brand-yellow rounded-lg transition-all hover:scale-110"
+                            title="Copiar ID"
+                          >
+                            <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                            </svg>
+                          </button>
                         </div>
                       </div>
 
