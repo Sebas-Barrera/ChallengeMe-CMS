@@ -13,6 +13,7 @@ import DeepTalkTranslationFields from '@/components/forms/DeepTalkTranslationFie
 import DeepTalkQuestionsManager from '@/components/forms/DeepTalkQuestionsManager';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import SuccessModal from '@/components/ui/SuccessModal';
+import Toast from '@/components/ui/Toast';
 
 interface DeepTalkTranslation {
   language_code: string;
@@ -71,6 +72,9 @@ export default function EditDeepTalkPage({ params }: PageProps) {
     is_active: true,
     sort_order: 0,
   });
+
+  // Estado para Toast
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' | 'warning' } | null>(null);
 
   useEffect(() => {
     fetchDeepTalkData();
@@ -145,7 +149,7 @@ export default function EditDeepTalkPage({ params }: PageProps) {
       // Actualizar preguntas
       const questionsData: Record<string, DeepTalkQuestion[]> = {};
 
-      deepTalk.deep_talk_questions.forEach((question: any) => {
+      deepTalk.deep_talk_questions.forEach((question: any, index: number) => {
         if (!questionsData[question.language_code]) {
           questionsData[question.language_code] = [];
         }
@@ -154,7 +158,7 @@ export default function EditDeepTalkPage({ params }: PageProps) {
           icon: question.icon,
           sort_order: question.sort_order,
           is_active: question.is_active,
-          temp_id: `existing_${question.language_code}_${question.sort_order}`,
+          temp_id: `existing_${question.language_code}_${index}_${Date.now()}`,
         });
       });
 
@@ -166,8 +170,10 @@ export default function EditDeepTalkPage({ params }: PageProps) {
       setQuestions(questionsData);
     } catch (error) {
       console.error('Error al cargar la categoría:', error);
-      alert('Error al cargar la categoría');
-      router.push(`/deep-talks/categories/${categoryId}/deep-talks`);
+      setToast({ message: 'Error al cargar la categoría', type: 'error' });
+      setTimeout(() => {
+        router.push(`/deep-talks/categories/${categoryId}/deep-talks`);
+      }, 2000);
     } finally {
       setIsFetching(false);
     }
@@ -193,7 +199,7 @@ export default function EditDeepTalkPage({ params }: PageProps) {
       const esTranslation = translations['es'];
 
       if (!esTranslation || !esTranslation.title || esTranslation.title.trim() === '') {
-        alert('Por favor, completa primero el título en español antes de auto-traducir');
+        setToast({ message: 'Por favor, completa primero el título en español antes de auto-traducir', type: 'warning' });
         return;
       }
 
@@ -229,11 +235,11 @@ export default function EditDeepTalkPage({ params }: PageProps) {
           },
         }));
       } else {
-        alert('Error al traducir. Intenta de nuevo.');
+        setToast({ message: 'Error al traducir. Intenta de nuevo.', type: 'error' });
       }
     } catch (error) {
       console.error('Error al auto-traducir:', error);
-      alert('Error al traducir. Intenta de nuevo.');
+      setToast({ message: 'Error al traducir. Intenta de nuevo.', type: 'error' });
     }
   };
 
@@ -249,7 +255,7 @@ export default function EditDeepTalkPage({ params }: PageProps) {
       const sourceQuestion = questions[sourceLanguage]?.[questionIndex];
 
       if (!sourceQuestion || !sourceQuestion.question.trim()) {
-        alert('No hay pregunta para traducir');
+        setToast({ message: 'No hay pregunta para traducir', type: 'warning' });
         return;
       }
 
@@ -296,10 +302,10 @@ export default function EditDeepTalkPage({ params }: PageProps) {
         }
       }
 
-      alert('Pregunta traducida exitosamente a todos los idiomas');
+      setToast({ message: 'Pregunta traducida exitosamente a todos los idiomas', type: 'success' });
     } catch (error) {
       console.error('Error al auto-traducir pregunta:', error);
-      alert('Error al traducir la pregunta. Intenta de nuevo.');
+      setToast({ message: 'Error al traducir la pregunta. Intenta de nuevo.', type: 'error' });
     }
   };
 
@@ -337,7 +343,7 @@ export default function EditDeepTalkPage({ params }: PageProps) {
     );
 
     if (missingTitles.length > 0) {
-      alert('Por favor, completa el título para todos los idiomas seleccionados');
+      setToast({ message: 'Por favor, completa el título para todos los idiomas seleccionados', type: 'warning' });
       return;
     }
 
@@ -347,7 +353,7 @@ export default function EditDeepTalkPage({ params }: PageProps) {
     );
 
     if (missingQuestions.length > 0) {
-      alert('Por favor, agrega al menos una pregunta para cada idioma');
+      setToast({ message: 'Por favor, agrega al menos una pregunta para cada idioma', type: 'warning' });
       return;
     }
 
@@ -443,7 +449,7 @@ export default function EditDeepTalkPage({ params }: PageProps) {
         error instanceof Error
           ? error.message
           : 'Error al actualizar la categoría. Por favor, intenta de nuevo.';
-      alert(errorMessage);
+      setToast({ message: errorMessage, type: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -713,6 +719,15 @@ export default function EditDeepTalkPage({ params }: PageProps) {
         title="¡Categoría actualizada!"
         message="Los cambios en la categoría se han guardado exitosamente. Todas las traducciones y preguntas han sido actualizadas."
       />
+
+      {/* Toast de notificaciones */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   );
 }

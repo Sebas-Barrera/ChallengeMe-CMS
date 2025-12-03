@@ -3,7 +3,6 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
-import Image from 'next/image';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import Button from '@/components/ui/Button';
@@ -11,6 +10,7 @@ import IconPicker from '@/components/ui/IconPicker';
 import LanguageSelector from '@/components/forms/LanguageSelector';
 import TranslationFields from '@/components/forms/TranslationFields';
 import { useAuth } from '@/contexts/AuthContext';
+import { Image } from 'next/image';
 
 interface Translation {
   language_code: string;

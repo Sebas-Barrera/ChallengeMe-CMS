@@ -10,6 +10,8 @@ import IconPicker from '@/components/ui/IconPicker';
 import LanguageSelector from '@/components/forms/LanguageSelector';
 import DeepTalkTranslationFields from '@/components/forms/DeepTalkTranslationFields';
 import DeepTalkQuestionsManager from '@/components/forms/DeepTalkQuestionsManager';
+import Toast from '@/components/ui/Toast';
+import Image from 'next/image';
 
 interface DeepTalkTranslation {
   language_code: string;
@@ -82,6 +84,9 @@ export default function NewDeepTalkPage({ params }: PageProps) {
     sort_order: 0,
   });
 
+  // Estado para Toast
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' | 'warning' } | null>(null);
+
   const handleTranslationChange = (
     languageCode: string,
     field: keyof DeepTalkTranslation,
@@ -102,7 +107,7 @@ export default function NewDeepTalkPage({ params }: PageProps) {
       const esTranslation = translations['es'];
 
       if (!esTranslation || !esTranslation.title || esTranslation.title.trim() === '') {
-        alert('Por favor, completa primero el título en español antes de auto-traducir');
+        setToast({ message: 'Por favor, completa primero el título en español antes de auto-traducir', type: 'warning' });
         return;
       }
 
@@ -145,7 +150,7 @@ export default function NewDeepTalkPage({ params }: PageProps) {
       }));
     } catch (error) {
       console.error('Error al auto-traducir:', error);
-      alert('Error al traducir. Intenta de nuevo.');
+      setToast({ message: 'Error al traducir. Intenta de nuevo.', type: 'error' });
     }
   };
 
@@ -161,7 +166,7 @@ export default function NewDeepTalkPage({ params }: PageProps) {
       const sourceQuestion = questions[sourceLanguage]?.[questionIndex];
 
       if (!sourceQuestion || !sourceQuestion.question.trim()) {
-        alert('No hay pregunta para traducir');
+        setToast({ message: 'No hay pregunta para traducir', type: 'warning' });
         return;
       }
 
@@ -212,10 +217,10 @@ export default function NewDeepTalkPage({ params }: PageProps) {
         }
       }
 
-      alert('Pregunta traducida exitosamente a todos los idiomas');
+      setToast({ message: 'Pregunta traducida exitosamente a todos los idiomas', type: 'success' });
     } catch (error) {
       console.error('Error al auto-traducir pregunta:', error);
-      alert('Error al traducir la pregunta. Intenta de nuevo.');
+      setToast({ message: 'Error al traducir la pregunta. Intenta de nuevo.', type: 'error' });
     }
   };
 
@@ -256,21 +261,21 @@ export default function NewDeepTalkPage({ params }: PageProps) {
       );
 
       if (missingTitles.length > 0) {
-        alert('Por favor, completa el título para todos los idiomas seleccionados');
+        setToast({ message: 'Por favor, completa el título para todos los idiomas seleccionados', type: 'warning' });
         setIsLoading(false);
         return;
       }
 
-      // Validar que haya al menos una pregunta por idioma
-      const missingQuestions = selectedLanguages.filter(
-        (lang) => !questions[lang] || questions[lang].length === 0
-      );
+      // Validación de preguntas es opcional - comentada
+      // const missingQuestions = selectedLanguages.filter(
+      //   (lang) => !questions[lang] || questions[lang].length === 0
+      // );
 
-      if (missingQuestions.length > 0) {
-        alert('Por favor, agrega al menos una pregunta para todos los idiomas seleccionados');
-        setIsLoading(false);
-        return;
-      }
+      // if (missingQuestions.length > 0) {
+      //   setToast({ message: 'Por favor, agrega al menos una pregunta para todos los idiomas seleccionados', type: 'warning' });
+      //   setIsLoading(false);
+      //   return;
+      // }
 
       // 1. Insertar deep_talk
       const { data: deepTalk, error: deepTalkError } = await supabase
@@ -310,9 +315,9 @@ export default function NewDeepTalkPage({ params }: PageProps) {
         throw new Error(translationsError.message);
       }
 
-      // 3. Insertar preguntas
+      // 3. Insertar preguntas (solo si hay preguntas)
       const questionsToInsert = selectedLanguages.flatMap((lang) =>
-        questions[lang].map((q) => ({
+        (questions[lang] || []).map((q) => ({
           deep_talk_id: deepTalk.id,
           language_code: lang,
           question: q.question,
@@ -322,23 +327,28 @@ export default function NewDeepTalkPage({ params }: PageProps) {
         }))
       );
 
-      const { error: questionsError } = await supabase
-        .from('deep_talk_questions')
-        .insert(questionsToInsert);
+      // Solo insertar si hay preguntas
+      if (questionsToInsert.length > 0) {
+        const { error: questionsError } = await supabase
+          .from('deep_talk_questions')
+          .insert(questionsToInsert);
 
-      if (questionsError) {
-        // Si falla, eliminar todo
-        await supabase.from('deep_talks').delete().eq('id', deepTalk.id);
-        throw new Error(questionsError.message);
+        if (questionsError) {
+          // Si falla, eliminar todo
+          await supabase.from('deep_talks').delete().eq('id', deepTalk.id);
+          throw new Error(questionsError.message);
+        }
       }
 
       // Éxito - redirigir
-      alert(`¡Plática creada exitosamente! ID: ${deepTalk.id}`);
-      router.push(`/deep-talks/categories/${categoryId}/deep-talks`);
+      setToast({ message: `¡Plática creada exitosamente! ID: ${deepTalk.id}`, type: 'success' });
+      setTimeout(() => {
+        router.push(`/deep-talks/categories/${categoryId}/deep-talks`);
+      }, 2000);
     } catch (error) {
       console.error('Error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Error al crear la plática. Por favor, intenta de nuevo.';
-      alert(errorMessage);
+      setToast({ message: errorMessage, type: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -564,7 +574,7 @@ export default function NewDeepTalkPage({ params }: PageProps) {
               <div>
                 <h2 className="text-xl font-bold text-text-primary">Preguntas</h2>
                 <p className="text-sm text-text-secondary">
-                  Preguntas para cada idioma (mínimo 1 por idioma)
+                  Preguntas para cada idioma (opcional)
                 </p>
               </div>
             </div>
@@ -592,6 +602,15 @@ export default function NewDeepTalkPage({ params }: PageProps) {
           </div>
         </form>
       </main>
+
+      {/* Toast de notificaciones */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
+      )}
     </div>
   );
 }

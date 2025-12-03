@@ -118,7 +118,7 @@ export default function DashboardPage() {
           {/* Módulos Principales - Cards grandes y destacadas */}
           <div className="mb-12">
             <h3 className="text-2xl font-bold text-text-primary mb-6">Módulos Principales</h3>
-            <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+            <div className="grid grid-cols-1 lg:grid-cols-2 xl:grid-cols-3 gap-6">
               {/* Card Retos - Activa y clickeable */}
               <Link href="/challenges/categories">
                 <div className="group bg-gradient-to-br from-brand-yellow/10 via-bg-secondary to-bg-secondary backdrop-blur-sm border-2 border-brand-yellow/30 rounded-2xl p-8 hover:border-brand-yellow hover:shadow-2xl hover:shadow-brand-yellow/20 transition-all duration-300 cursor-pointer relative overflow-hidden">
@@ -216,6 +216,58 @@ export default function DashboardPage() {
                       </div>
                       <div className="flex items-center gap-2">
                         <div className="w-2 h-2 rounded-full bg-brand-purple"></div>
+                        <span className="text-text-tertiary">Multiidioma</span>
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              </Link>
+
+              {/* Card Consejos del Día - Activa y clickeable */}
+              <Link href="/daily-tips">
+                <div className="group bg-gradient-to-br from-brand-blue/10 via-bg-secondary to-bg-secondary backdrop-blur-sm border-2 border-brand-blue/30 rounded-2xl p-8 hover:border-brand-blue hover:shadow-2xl hover:shadow-brand-blue/20 transition-all duration-300 cursor-pointer relative overflow-hidden">
+                  {/* Efecto de brillo */}
+                  <div className="absolute inset-0 bg-gradient-to-r from-transparent via-brand-blue/5 to-transparent translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-1000"></div>
+
+                  <div className="relative z-10">
+                    <div className="flex items-start justify-between mb-6">
+                      <div className="w-20 h-20 rounded-2xl bg-gradient-to-br from-brand-blue to-brand-blue/80 flex items-center justify-center shadow-lg shadow-brand-blue/30 group-hover:scale-110 transition-transform duration-300">
+                        <svg
+                          className="w-10 h-10 text-white"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M9.663 17h4.673M12 3v1m6.364 1.636l-.707.707M21 12h-1M4 12H3m3.343-5.657l-.707-.707m2.828 9.9a5 5 0 117.072 0l-.548.547A3.374 3.374 0 0014 18.469V19a2 2 0 11-4 0v-.531c0-.895-.356-1.754-.988-2.386l-.548-.547z"
+                          />
+                        </svg>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <span className="px-3 py-1 bg-brand-blue text-white text-xs font-bold rounded-lg shadow-lg">
+                          ACTIVO
+                        </span>
+                        <svg className="w-6 h-6 text-brand-blue group-hover:translate-x-1 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 5l7 7-7 7" />
+                        </svg>
+                      </div>
+                    </div>
+                    <h3 className="text-3xl font-bold text-text-primary mb-3 group-hover:text-brand-blue transition-colors">
+                      Consejos del Día
+                    </h3>
+                    <p className="text-text-secondary mb-6">
+                      Crea y gestiona consejos motivacionales diarios para inspirar a tus usuarios cada día.
+                    </p>
+                    <div className="flex items-center gap-4 text-sm">
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-brand-blue"></div>
+                        <span className="text-text-tertiary">Motivacional</span>
+                      </div>
+                      <div className="flex items-center gap-2">
+                        <div className="w-2 h-2 rounded-full bg-brand-blue"></div>
                         <span className="text-text-tertiary">Multiidioma</span>
                       </div>
                     </div>

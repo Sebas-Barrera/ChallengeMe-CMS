@@ -1,5 +1,6 @@
 'use client';
 
+import { useState } from 'react';
 import { getLanguageByCode } from '@/constants/languages';
 import Textarea from '@/components/ui/Textarea';
 import Button from '@/components/ui/Button';
@@ -113,9 +114,16 @@ export default function DeepTalkQuestionsManager({
     );
   }
 
+  // Ordenar idiomas: español primero, luego el resto alfabéticamente
+  const sortedLanguages = [...selectedLanguages].sort((a, b) => {
+    if (a === 'es') return -1;
+    if (b === 'es') return 1;
+    return a.localeCompare(b);
+  });
+
   return (
     <div className="space-y-6">
-      {selectedLanguages.map((languageCode) => {
+      {sortedLanguages.map((languageCode) => {
         const language = getLanguageByCode(languageCode);
         if (!language) return null;
 
@@ -128,36 +136,38 @@ export default function DeepTalkQuestionsManager({
             className="bg-bg-secondary/80 backdrop-blur-sm border border-border rounded-2xl p-6 shadow-lg shadow-black/10"
           >
             {/* Header del idioma */}
-            <div className="flex items-center justify-between mb-6 pb-4 border-b border-border/50">
-              <div className="flex items-center gap-3">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-blue/20 to-brand-blue/5 border border-brand-blue/30 flex items-center justify-center">
-                  <span className="text-2xl">{language.flag}</span>
+            <div className="flex flex-col gap-4 mb-6 pb-4 border-b border-border/50">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-blue/20 to-brand-blue/5 border border-brand-blue/30 flex items-center justify-center">
+                    <span className="text-2xl">{language.flag}</span>
+                  </div>
+                  <div>
+                    <h3 className="text-lg font-bold text-text-primary">
+                      Preguntas en {language.nativeName}
+                    </h3>
+                    <p className="text-xs text-text-secondary">
+                      {languageQuestions.length} pregunta{languageQuestions.length !== 1 ? 's' : ''}
+                    </p>
+                  </div>
                 </div>
-                <div>
-                  <h3 className="text-lg font-bold text-text-primary">
-                    Preguntas en {language.nativeName}
-                  </h3>
-                  <p className="text-xs text-text-secondary">
-                    {languageQuestions.length} pregunta{languageQuestions.length !== 1 ? 's' : ''}
-                  </p>
-                </div>
+                <Button
+                  type="button"
+                  variant="secondary"
+                  size="sm"
+                  onClick={() => addQuestion(languageCode)}
+                >
+                  <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M12 4v16m8-8H4"
+                    />
+                  </svg>
+                  Agregar Pregunta
+                </Button>
               </div>
-              <Button
-                type="button"
-                variant="secondary"
-                size="sm"
-                onClick={() => addQuestion(languageCode)}
-              >
-                <svg className="w-4 h-4 mr-1" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M12 4v16m8-8H4"
-                  />
-                </svg>
-                Agregar Pregunta
-              </Button>
             </div>
 
             {/* Lista de preguntas */}
@@ -166,7 +176,9 @@ export default function DeepTalkQuestionsManager({
                 {languageQuestions.map((q, index) => (
                   <div
                     key={q.temp_id || index}
-                    className="bg-bg-tertiary/50 border border-border/50 rounded-xl p-4"
+                    className={`bg-bg-tertiary/50 border border-border/50 rounded-xl p-4 transition-all duration-200 ${
+                      !q.is_active ? 'opacity-50 blur-[0.5px] grayscale' : ''
+                    }`}
                   >
                     <div className="flex items-start gap-3">
                       {/* Número de pregunta */}
