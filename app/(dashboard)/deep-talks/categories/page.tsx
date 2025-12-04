@@ -2232,7 +2232,7 @@ Autoconocimiento,compass,2,true,¿Cuáles son los valores que guían tus decisio
                       <div>
                         <p className="font-bold text-text-primary mb-1">Campos Obligatorios:</p>
                         <ul className="list-disc list-inside space-y-1 ml-2">
-                          <li><strong className="text-red-500">category_title_es:</strong> Título EXACTO en español de la categoría (ej: Amor y Pareja, Metas y Sueños) - IMPORTANTE: Debe coincidir exactamente con el título de una categoría existente</li>
+                          <li><strong className="text-red-500">title_es:</strong> Título EXACTO en español de la categoría (ej: Amor y Pareja, Metas y Sueños) - IMPORTANTE: Debe coincidir exactamente con el título de una categoría existente</li>
                           <li><strong>sort_order:</strong> Orden de visualización (número entero)</li>
                           <li><strong>is_active:</strong> true o false</li>
                           <li><strong>question_es:</strong> Pregunta en español</li>
