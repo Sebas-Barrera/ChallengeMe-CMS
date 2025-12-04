@@ -34,7 +34,7 @@ export default function LanguageSelector({
       <label className="block text-sm font-medium text-text-primary mb-3">
         Idiomas <span className="text-error">*</span>
       </label>
-      <div className="grid grid-cols-2 sm:grid-cols-3 md:grid-cols-5 gap-3">
+      <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3">
         {SUPPORTED_LANGUAGES.map((language) => {
           const isSelected = selectedLanguages.includes(language.code);
           const isRequired = requiredLanguages.includes(language.code);

@@ -3,14 +3,16 @@
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import Input from '@/components/ui/Input';
 import Select from '@/components/ui/Select';
 import Button from '@/components/ui/Button';
+import Toast from '@/components/ui/Toast';
 import IconPicker from '@/components/ui/IconPicker';
 import LanguageSelector from '@/components/forms/LanguageSelector';
 import TranslationFields from '@/components/forms/TranslationFields';
 import { useAuth } from '@/contexts/AuthContext';
-import { Image } from 'next/image';
+import { useToast } from '@/hooks/useToast';
 
 interface Translation {
   language_code: string;
@@ -37,6 +39,7 @@ export default function EditCategoryPage() {
   const params = useParams();
   const categoryId = params.id as string;
   const { supabase } = useAuth();
+  const { toast, showToast, hideToast } = useToast();
 
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(true);
@@ -90,7 +93,7 @@ export default function EditCategoryPage() {
       }
 
       if (!categoryData) {
-        alert('Categoría no encontrada');
+        showToast({ message: 'Categoría no encontrada', type: 'error' });
         router.push('/challenges/categories');
         return;
       }
@@ -127,7 +130,7 @@ export default function EditCategoryPage() {
       setTranslations(translationsData);
     } catch (error: any) {
       console.error('Error al cargar categoría:', error);
-      alert('Error al cargar la categoría: ' + error.message);
+      showToast({ message: 'Error al cargar la categoría: ' + error.message, type: 'error' });
       router.push('/challenges/categories');
     } finally {
       setIsLoadingData(false);
@@ -155,7 +158,7 @@ export default function EditCategoryPage() {
       const esTranslation = translations['es'];
 
       if (!esTranslation || !esTranslation.title || esTranslation.title.trim() === '') {
-        alert('Por favor, completa primero el título en español antes de auto-traducir');
+        showToast({ message: 'Por favor, completa primero el título en español antes de auto-traducir', type: 'warning' });
         return;
       }
 
@@ -182,7 +185,7 @@ export default function EditCategoryPage() {
       }
 
       if (textsToTranslate.length === 0) {
-        alert('No hay contenido en español para traducir');
+        showToast({ message: 'No hay contenido en español para traducir', type: 'warning' });
         return;
       }
 
@@ -220,7 +223,7 @@ export default function EditCategoryPage() {
       }));
     } catch (error: any) {
       console.error('Error al auto-traducir:', error);
-      alert('Error al traducir: ' + (error.message || 'Intenta de nuevo'));
+      showToast({ message: 'Error al traducir: ' + (error.message || 'Intenta de nuevo'), type: 'error' });
     }
   };
 
@@ -235,7 +238,7 @@ export default function EditCategoryPage() {
       );
 
       if (missingTitles.length > 0) {
-        alert('Por favor, completa el título para todos los idiomas seleccionados');
+        showToast({ message: 'Por favor, completa el título para todos los idiomas seleccionados', type: 'warning' });
         setIsLoading(false);
         return;
       }
@@ -298,12 +301,16 @@ export default function EditCategoryPage() {
         throw new Error(translationsError.message);
       }
 
-      // Éxito - redirigir
-      alert('¡Categoría actualizada exitosamente!');
-      router.push('/challenges/categories');
+      // Éxito - mostrar toast
+      showToast({ message: '¡Categoría actualizada exitosamente!', type: 'success' });
+
+      // Redirigir después de 1 segundo
+      setTimeout(() => {
+        router.push('/challenges/categories');
+      }, 1000);
     } catch (error: any) {
       console.error('Error:', error);
-      alert(error.message || 'Error al actualizar la categoría. Por favor, intenta de nuevo.');
+      showToast({ message: error.message || 'Error al actualizar la categoría. Por favor, intenta de nuevo.', type: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -577,6 +584,16 @@ export default function EditCategoryPage() {
           </div>
         </form>
       </main>
+
+      {/* Toast notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          duration={toast.duration}
+          onClose={hideToast}
+        />
+      )}
     </div>
   );
 }

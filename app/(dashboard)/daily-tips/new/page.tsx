@@ -166,7 +166,14 @@ export default function NewDailyTipPage() {
         .select()
         .single();
 
-      if (tipError) throw tipError;
+      if (tipError) {
+        console.error('Error al crear daily tip:', tipError);
+        throw new Error(tipError.message || 'Error al crear el consejo');
+      }
+
+      if (!tipData) {
+        throw new Error('No se pudo crear el consejo');
+      }
 
       // 2. Crear las traducciones
       const translationsToInsert = selectedLanguages.map((lang) => ({
@@ -179,7 +186,10 @@ export default function NewDailyTipPage() {
         .from('daily_tip_translations')
         .insert(translationsToInsert);
 
-      if (translationsError) throw translationsError;
+      if (translationsError) {
+        console.error('Error al crear traducciones:', translationsError);
+        throw new Error(translationsError.message || 'Error al crear las traducciones');
+      }
 
       // Mostrar éxito y redirigir
       setToast({ message: '¡Consejo creado exitosamente!', type: 'success' });
@@ -188,7 +198,8 @@ export default function NewDailyTipPage() {
       }, 1500);
     } catch (error) {
       console.error('Error creating daily tip:', error);
-      setToast({ message: 'Error al crear el consejo. Por favor, intenta nuevamente.', type: 'error' });
+      const errorMessage = error instanceof Error ? error.message : 'Error al crear el consejo. Por favor, intenta nuevamente.';
+      setToast({ message: errorMessage, type: 'error' });
       setIsSaving(false);
     }
   };

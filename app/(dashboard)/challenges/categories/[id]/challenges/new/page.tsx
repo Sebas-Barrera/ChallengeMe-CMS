@@ -6,9 +6,11 @@ import Link from 'next/link';
 import Image from 'next/image';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
-import EmojiPicker from '@/components/ui/EmojiPicker';
+import Toast from '@/components/ui/Toast';
+import EmojiOrIconPicker from '@/components/ui/EmojiOrIconPicker';
 import LanguageSelector from '@/components/forms/LanguageSelector';
 import ChallengeTranslationFields from '@/components/forms/ChallengeTranslationFields';
+import { useToast } from '@/hooks/useToast';
 
 interface ChallengeTranslation {
   language_code: string;
@@ -29,6 +31,7 @@ export default function NewChallengePage({ params }: PageProps) {
   const resolvedParams = use(params);
   const categoryId = resolvedParams.id;
   const router = useRouter();
+  const { toast, showToast, hideToast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
 
   // Modo de entrada: manual o CSV
@@ -74,7 +77,7 @@ export default function NewChallengePage({ params }: PageProps) {
       const esTranslation = translations['es'];
 
       if (!esTranslation || !esTranslation.content || esTranslation.content.trim() === '') {
-        alert('Por favor, completa primero el contenido en español antes de auto-traducir');
+        showToast({ message: 'Por favor, completa primero el contenido en español antes de auto-traducir', type: 'warning' });
         return;
       }
 
@@ -100,11 +103,11 @@ export default function NewChallengePage({ params }: PageProps) {
           },
         }));
       } else {
-        alert('Error al traducir. Intenta de nuevo.');
+        showToast({ message: 'Error al traducir. Intenta de nuevo.', type: 'error' });
       }
     } catch (error) {
       console.error('Error al auto-traducir:', error);
-      alert('Error al traducir. Intenta de nuevo.');
+      showToast({ message: 'Error al traducir. Intenta de nuevo.', type: 'error' });
     }
   };
 
@@ -112,7 +115,7 @@ export default function NewChallengePage({ params }: PageProps) {
     e.preventDefault();
 
     if (!csvFile) {
-      alert('Por favor selecciona un archivo CSV');
+      showToast({ message: 'Por favor selecciona un archivo CSV', type: 'warning' });
       return;
     }
 
@@ -125,7 +128,7 @@ export default function NewChallengePage({ params }: PageProps) {
       const lines = text.split('\n').filter(line => line.trim());
 
       if (lines.length < 2) {
-        alert('El archivo CSV está vacío o no tiene datos');
+        showToast({ message: 'El archivo CSV está vacío o no tiene datos', type: 'error' });
         setIsLoading(false);
         return;
       }
@@ -136,7 +139,7 @@ export default function NewChallengePage({ params }: PageProps) {
       const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
 
       if (missingHeaders.length > 0) {
-        alert(`Faltan columnas requeridas en el CSV: ${missingHeaders.join(', ')}`);
+        showToast({ message: `Faltan columnas requeridas en el CSV: ${missingHeaders.join(', ')}`, type: 'error' });
         setIsLoading(false);
         return;
       }
@@ -177,7 +180,7 @@ export default function NewChallengePage({ params }: PageProps) {
       }
 
       if (challenges.length === 0) {
-        alert('No se encontraron retos válidos en el CSV');
+        showToast({ message: 'No se encontraron retos válidos en el CSV', type: 'error' });
         setIsLoading(false);
         return;
       }
@@ -248,14 +251,20 @@ export default function NewChallengePage({ params }: PageProps) {
 
       // Mostrar resumen
       if (successCount > 0) {
-        alert(`✅ Importación completada:\n\n${successCount} reto(s) importado(s) exitosamente\n${insertErrors.length} error(es)`);
-        router.push(`/challenges/categories/${categoryId}/challenges`);
+        showToast({
+          message: `✅ Importación completada: ${successCount} reto(s) importado(s) exitosamente${insertErrors.length > 0 ? `, ${insertErrors.length} error(es)` : ''}`,
+          type: 'success',
+          duration: 3000
+        });
+        setTimeout(() => {
+          router.push(`/challenges/categories/${categoryId}/challenges`);
+        }, 1500);
       } else {
-        alert('❌ No se pudo importar ningún reto. Revisa los errores.');
+        showToast({ message: '❌ No se pudo importar ningún reto. Revisa los errores.', type: 'error' });
       }
     } catch (error) {
       console.error('Error:', error);
-      alert('Error al procesar el archivo CSV: ' + (error instanceof Error ? error.message : 'Error desconocido'));
+      showToast({ message: 'Error al procesar el archivo CSV: ' + (error instanceof Error ? error.message : 'Error desconocido'), type: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -272,7 +281,7 @@ export default function NewChallengePage({ params }: PageProps) {
       );
 
       if (missingContent.length > 0) {
-        alert('Por favor, completa el contenido para todos los idiomas seleccionados');
+        showToast({ message: 'Por favor, completa el contenido para todos los idiomas seleccionados', type: 'warning' });
         setIsLoading(false);
         return;
       }
@@ -319,12 +328,14 @@ export default function NewChallengePage({ params }: PageProps) {
       }
 
       // Éxito - redirigir
-      alert(`¡Reto creado exitosamente! ID: ${challenge.id}`);
-      router.push(`/challenges/categories/${categoryId}/challenges`);
+      showToast({ message: `¡Reto creado exitosamente! ID: ${challenge.id}`, type: 'success' });
+      setTimeout(() => {
+        router.push(`/challenges/categories/${categoryId}/challenges`);
+      }, 1000);
     } catch (error) {
       console.error('Error:', error);
       const errorMessage = error instanceof Error ? error.message : 'Error al crear el reto. Por favor, intenta de nuevo.';
-      alert(errorMessage);
+      showToast({ message: errorMessage, type: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -533,22 +544,22 @@ export default function NewChallengePage({ params }: PageProps) {
           <div className="bg-bg-secondary/80 backdrop-blur-sm border border-border rounded-2xl p-6 shadow-lg shadow-black/10">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-yellow/20 to-brand-yellow/5 border border-brand-yellow/30 flex items-center justify-center text-2xl">
-                {formData.icon || '🎯'}
+                🎨
               </div>
               <div>
-                <h2 className="text-xl font-bold text-text-primary">Emoji del Reto</h2>
+                <h2 className="text-xl font-bold text-text-primary">Icono o Emoji del Reto</h2>
                 <p className="text-sm text-text-secondary">
-                  Selecciona el emoji que identificará este reto
+                  Elige un emoji o un icono de Ionicons para representar este reto
                 </p>
               </div>
             </div>
 
             <div className="grid grid-cols-1 gap-4">
-              <EmojiPicker
-                label="Emoji"
+              <EmojiOrIconPicker
+                label="Icono / Emoji"
                 value={formData.icon || ''}
                 onChange={(value) => setFormData({ ...formData, icon: value || '' })}
-                helperText="Selecciona un emoji para identificar visualmente este reto"
+                helperText="Selecciona un emoji o un icono para identificar visualmente este reto"
               />
             </div>
           </div>
@@ -661,6 +672,16 @@ export default function NewChallengePage({ params }: PageProps) {
         </form>
         )}
       </main>
+
+      {/* Toast notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          duration={toast.duration}
+          onClose={hideToast}
+        />
+      )}
     </div>
   );
 }

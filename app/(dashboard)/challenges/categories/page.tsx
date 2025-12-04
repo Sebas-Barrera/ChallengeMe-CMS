@@ -4,6 +4,9 @@ import Link from 'next/link';
 import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/useToast';
+import Toast from '@/components/ui/Toast';
+import * as IoIcons from 'react-icons/io5';
 
 interface Translation {
   language_code: string;
@@ -27,8 +30,22 @@ interface Category {
 
 type FilterStatus = 'all' | 'active' | 'inactive';
 
+// Convertir nombre de Ionicons a componente de React Icons
+// Ejemplo: game-controller -> IoGameController
+const getIconComponent = (iconName: string) => {
+  if (!iconName) return null;
+
+  const reactIconName = 'Io' + iconName
+    .split('-')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join('');
+
+  return IoIcons[reactIconName as keyof typeof IoIcons] || null;
+};
+
 export default function CategoriesPage() {
   const { supabase } = useAuth();
+  const { toast, showToast, hideToast } = useToast();
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
@@ -36,6 +53,17 @@ export default function CategoriesPage() {
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
+
+  // Estados para el modal de upload CSV
+  const [showUploadModal, setShowUploadModal] = useState(false);
+  const [activeTab, setActiveTab] = useState<'categories' | 'challenges'>('categories');
+  const [csvFile, setCsvFile] = useState<File | null>(null);
+  const [isUploading, setIsUploading] = useState(false);
+  const [uploadProgress, setUploadProgress] = useState<{ current: number; total: number; errors: string[] }>({
+    current: 0,
+    total: 0,
+    errors: []
+  });
 
   useEffect(() => {
     fetchCategories();
@@ -74,7 +102,7 @@ export default function CategoriesPage() {
 
       if (translationsError) {
         console.error('Error deleting translations:', translationsError);
-        alert('Error al eliminar las traducciones de la categoría');
+        showToast({ message: 'Error al eliminar las traducciones de la categoría', type: 'error' });
         return;
       }
 
@@ -86,7 +114,7 @@ export default function CategoriesPage() {
 
       if (categoryError) {
         console.error('Error deleting category:', categoryError);
-        alert('Error al eliminar la categoría');
+        showToast({ message: 'Error al eliminar la categoría', type: 'error' });
         return;
       }
 
@@ -94,9 +122,10 @@ export default function CategoriesPage() {
       setCategories(categories.filter(cat => cat.id !== categoryToDelete.id));
       setDeleteModalOpen(false);
       setCategoryToDelete(null);
+      showToast({ message: 'Categoría eliminada exitosamente', type: 'success' });
     } catch (error) {
       console.error('Error:', error);
-      alert('Error al eliminar la categoría');
+      showToast({ message: 'Error al eliminar la categoría', type: 'error' });
     } finally {
       setIsDeleting(false);
     }
@@ -164,6 +193,299 @@ export default function CategoriesPage() {
     }
   };
 
+  // Función para parsear CSV
+  const parseCSVLine = (line: string): string[] => {
+    const values: string[] = [];
+    let current = '';
+    let inQuotes = false;
+
+    for (let i = 0; i < line.length; i++) {
+      const char = line[i];
+      const nextChar = line[i + 1];
+
+      if (char === '"') {
+        if (inQuotes && nextChar === '"') {
+          current += '"';
+          i++;
+        } else {
+          inQuotes = !inQuotes;
+        }
+      } else if (char === ',' && !inQuotes) {
+        values.push(current.trim());
+        current = '';
+      } else {
+        current += char;
+      }
+    }
+    values.push(current.trim());
+    return values;
+  };
+
+  // Upload de Categorías CSV
+  const handleUploadCategories = async () => {
+    if (!csvFile) {
+      showToast({ message: 'Por favor selecciona un archivo CSV', type: 'warning' });
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadProgress({ current: 0, total: 0, errors: [] });
+
+    try {
+      const text = await csvFile.text();
+      const lines = text.split('\n').filter(line => line.trim());
+
+      if (lines.length < 2) {
+        throw new Error('El archivo CSV está vacío');
+      }
+
+      const headers = parseCSVLine(lines[0]);
+      const requiredHeaders = ['icon', 'text_color', 'min_players', 'max_players', 'gradient_color1', 'gradient_color2', 'age_rating', 'is_premium', 'is_active', 'title_es', 'title_en'];
+
+      const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
+      if (missingHeaders.length > 0) {
+        throw new Error(`Faltan columnas requeridas: ${missingHeaders.join(', ')}`);
+      }
+
+      const categoriesToInsert: any[] = [];
+      for (let i = 1; i < lines.length; i++) {
+        const values = parseCSVLine(lines[i]);
+        if (values.length !== headers.length) continue;
+
+        const row: Record<string, string> = {};
+        headers.forEach((header, index) => {
+          row[header] = values[index];
+        });
+
+        if (!row.title_es || !row.title_en) continue;
+
+        categoriesToInsert.push({
+          categoryData: {
+            game_mode_id: '11111111-1111-1111-1111-111111111111',
+            icon: row.icon || null,
+            text_color: row.text_color || '#FFFFFF',
+            min_players: parseInt(row.min_players) || 2,
+            max_players: parseInt(row.max_players) || 10,
+            gradient_colors: [row.gradient_color1, row.gradient_color2],
+            age_rating: row.age_rating as 'ALL' | 'TEEN' | 'ADULT',
+            is_premium: row.is_premium === 'true' || row.is_premium === '1',
+            is_active: row.is_active === 'true' || row.is_active === '1',
+          },
+          translations: {
+            es: { title: row.title_es, description: row.description_es || null, instructions: row.instructions_es || null, tags: row.tags_es || null },
+            en: { title: row.title_en, description: row.description_en || null, instructions: row.instructions_en || null, tags: row.tags_en || null },
+            fr: row.title_fr ? { title: row.title_fr, description: row.description_fr || null, instructions: row.instructions_fr || null, tags: row.tags_fr || null } : null,
+            pt: row.title_pt ? { title: row.title_pt, description: row.description_pt || null, instructions: row.instructions_pt || null, tags: row.tags_pt || null } : null,
+          },
+        });
+      }
+
+      setUploadProgress({ current: 0, total: categoriesToInsert.length, errors: [] });
+      let successCount = 0;
+
+      for (let i = 0; i < categoriesToInsert.length; i++) {
+        const { categoryData, translations } = categoriesToInsert[i];
+
+        try {
+          const { data: category, error: categoryError } = await supabase
+            .from('challenge_categories')
+            .insert(categoryData)
+            .select('id')
+            .single();
+
+          if (categoryError) throw new Error(categoryError.message);
+
+          const translationsToInsert: any[] = [];
+          Object.entries(translations).forEach(([langCode, trans]: [string, any]) => {
+            if (trans && trans.title) {
+              const tags = trans.tags ? trans.tags.split(',').map((tag: string) => tag.trim()).filter((tag: string) => tag) : [];
+              translationsToInsert.push({
+                challenge_category_id: category.id,
+                language_code: langCode,
+                title: trans.title,
+                description: trans.description || null,
+                instructions: trans.instructions || null,
+                tags: tags.length > 0 ? tags : null,
+              });
+            }
+          });
+
+          const { error: translationsError } = await supabase
+            .from('challenge_category_translations')
+            .insert(translationsToInsert);
+
+          if (translationsError) {
+            await supabase.from('challenge_categories').delete().eq('id', category.id);
+            throw new Error(translationsError.message);
+          }
+
+          successCount++;
+          setUploadProgress(prev => ({ ...prev, current: i + 1 }));
+        } catch (error: any) {
+          setUploadProgress(prev => ({
+            ...prev,
+            current: i + 1,
+            errors: [...prev.errors, `Categoría ${i + 1}: ${error.message}`],
+          }));
+        }
+      }
+
+      if (successCount > 0) {
+        showToast({
+          message: `${successCount} ${successCount === 1 ? 'categoría creada' : 'categorías creadas'} exitosamente`,
+          type: 'success',
+          duration: 3000
+        });
+        fetchCategories();
+      } else {
+        showToast({ message: 'No se pudo crear ninguna categoría', type: 'error' });
+      }
+    } catch (error: any) {
+      showToast({ message: error.message || 'Error al procesar el CSV', type: 'error' });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  // Upload de Retos CSV
+  const handleUploadChallenges = async () => {
+    if (!csvFile) {
+      showToast({ message: 'Por favor selecciona un archivo CSV', type: 'warning' });
+      return;
+    }
+
+    setIsUploading(true);
+    setUploadProgress({ current: 0, total: 0, errors: [] });
+
+    try {
+      const text = await csvFile.text();
+      const lines = text.split('\n').filter(line => line.trim());
+
+      if (lines.length < 2) {
+        throw new Error('El archivo CSV está vacío');
+      }
+
+      const headers = parseCSVLine(lines[0]);
+      const requiredHeaders = ['category_id', 'icon', 'is_active', 'text_es', 'text_en'];
+
+      const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
+      if (missingHeaders.length > 0) {
+        throw new Error(`Faltan columnas requeridas: ${missingHeaders.join(', ')}`);
+      }
+
+      const challengesToInsert: any[] = [];
+      for (let i = 1; i < lines.length; i++) {
+        const values = parseCSVLine(lines[i]);
+        if (values.length !== headers.length) continue;
+
+        const row: Record<string, string> = {};
+        headers.forEach((header, index) => {
+          row[header] = values[index];
+        });
+
+        if (!row.category_id || !row.icon || !row.text_es || !row.text_en) continue;
+
+        challengesToInsert.push({
+          challengeData: {
+            challenge_category_id: row.category_id,
+            icon: row.icon,
+            is_active: row.is_active === 'true' || row.is_active === '1',
+            is_premium: row.is_premium === 'true' || row.is_premium === '1',
+          },
+          translations: {
+            es: { content: row.text_es },
+            en: { content: row.text_en },
+            fr: row.text_fr ? { content: row.text_fr } : null,
+            pt: row.text_pt ? { content: row.text_pt } : null,
+          },
+        });
+      }
+
+      setUploadProgress({ current: 0, total: challengesToInsert.length, errors: [] });
+      let successCount = 0;
+
+      for (let i = 0; i < challengesToInsert.length; i++) {
+        const { challengeData, translations } = challengesToInsert[i];
+
+        try {
+          const { data: challenge, error: challengeError } = await supabase
+            .from('challenges')
+            .insert(challengeData)
+            .select('id')
+            .single();
+
+          if (challengeError) throw new Error(challengeError.message);
+
+          const translationsToInsert: any[] = [];
+          Object.entries(translations).forEach(([langCode, trans]: [string, any]) => {
+            if (trans && trans.content) {
+              translationsToInsert.push({
+                challenge_id: challenge.id,
+                language_code: langCode,
+                content: trans.content,
+                icon: challengeData.icon,
+              });
+            }
+          });
+
+          const { error: translationsError } = await supabase
+            .from('challenge_translations')
+            .insert(translationsToInsert);
+
+          if (translationsError) {
+            await supabase.from('challenges').delete().eq('id', challenge.id);
+            throw new Error(translationsError.message);
+          }
+
+          successCount++;
+          setUploadProgress(prev => ({ ...prev, current: i + 1 }));
+        } catch (error: any) {
+          setUploadProgress(prev => ({
+            ...prev,
+            current: i + 1,
+            errors: [...prev.errors, `Reto ${i + 1}: ${error.message}`],
+          }));
+        }
+      }
+
+      if (successCount > 0) {
+        showToast({
+          message: `${successCount} ${successCount === 1 ? 'reto creado' : 'retos creados'} exitosamente`,
+          type: 'success',
+          duration: 3000
+        });
+        fetchCategories();
+      } else {
+        showToast({ message: 'No se pudo crear ningún reto', type: 'error' });
+      }
+    } catch (error: any) {
+      showToast({ message: error.message || 'Error al procesar el CSV', type: 'error' });
+    } finally {
+      setIsUploading(false);
+    }
+  };
+
+  const downloadExampleCategories = () => {
+    const csvContent = `icon,text_color,min_players,max_players,gradient_color1,gradient_color2,age_rating,is_premium,is_active,title_es,title_en,description_es,description_en,instructions_es,instructions_en,tags_es,tags_en,title_fr,description_fr,instructions_fr,tags_fr,title_pt,description_pt,instructions_pt,tags_pt
+party-popper,#FFFFFF,2,10,#FF6B6B,#FF8E53,ALL,false,true,Retos Divertidos,Fun Challenges,Retos para pasar un buen rato,Challenges for a good time,Completa estos retos y diviértete,Complete these challenges and have fun,"diversión,risas,entretenimiento","fun,laughs,entertainment",Défis Amusants,Défis pour passer un bon moment,Complétez ces défis et amusez-vous,"amusement,rires,divertissement",Desafios Divertidos,Desafios para passar um bom tempo,Complete esses desafios e divirta-se,"diversão,risadas,entretenimento"`;
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'example-challenge-categories.csv';
+    link.click();
+  };
+
+  const downloadExampleChallenges = () => {
+    const csvContent = `category_id,icon,is_active,is_premium,text_es,text_en,text_fr,text_pt
+CATEGORY_ID_HERE,musical-notes,true,false,Canta una canción en karaoke,Sing a karaoke song,Chantez une chanson au karaoké,Cante uma música no karaokê
+CATEGORY_ID_HERE,fitness,true,false,Haz 10 flexiones,Do 10 push-ups,Faites 10 pompes,Faça 10 flexões`;
+    const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
+    const link = document.createElement('a');
+    link.href = URL.createObjectURL(blob);
+    link.download = 'example-challenges.csv';
+    link.click();
+  };
+
   return (
     <div className="min-h-screen bg-bg-primary relative overflow-hidden">
       {/* Formas decorativas de fondo */}
@@ -225,25 +547,26 @@ export default function CategoriesPage() {
               </div>
 
               <div className="flex items-center gap-3">
-                <Link href="/challenges/bulk-upload">
-                  <button className="px-5 py-2.5 bg-brand-purple hover:bg-brand-purple/90 text-white font-semibold rounded-xl transition-all duration-200 flex items-center gap-2 shadow-lg shadow-brand-purple/20 hover:shadow-brand-purple/30 hover:scale-105">
-                    <svg
-                      className="w-5 h-5"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
-                      />
-                    </svg>
-                    <span className="hidden sm:inline">Upload Retos</span>
-                    <span className="sm:hidden">Upload</span>
-                  </button>
-                </Link>
+                <button
+                  onClick={() => setShowUploadModal(true)}
+                  className="px-5 py-2.5 bg-brand-purple hover:bg-brand-purple/90 text-white font-semibold rounded-xl transition-all duration-200 flex items-center gap-2 shadow-lg shadow-brand-purple/20 hover:shadow-brand-purple/30 hover:scale-105"
+                >
+                  <svg
+                    className="w-5 h-5"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12"
+                    />
+                  </svg>
+                  <span className="hidden sm:inline">Upload .CSV</span>
+                  <span className="sm:hidden">Upload</span>
+                </button>
                 <Link href="/challenges/categories/new">
                   <button className="px-5 py-2.5 bg-brand-yellow hover:bg-brand-yellow/90 text-black font-semibold rounded-xl transition-all duration-200 flex items-center gap-2 shadow-lg shadow-brand-yellow/20 hover:shadow-brand-yellow/30 hover:scale-105">
                     <svg
@@ -491,20 +814,30 @@ export default function CategoriesPage() {
 
                       {/* Icono */}
                       <div className="relative z-10">
-                        <svg
-                          className="w-16 h-16 drop-shadow-lg"
-                          style={{ color: category.text_color }}
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M13 10V3L4 14h7v7l9-11h-7z"
-                          />
-                        </svg>
+                        {(() => {
+                          const IconComponent = getIconComponent(category.icon);
+                          return IconComponent ? (
+                            <IconComponent
+                              className="w-16 h-16 drop-shadow-lg"
+                              style={{ color: category.text_color }}
+                            />
+                          ) : (
+                            <svg
+                              className="w-16 h-16 drop-shadow-lg"
+                              style={{ color: category.text_color }}
+                              fill="none"
+                              stroke="currentColor"
+                              viewBox="0 0 24 24"
+                            >
+                              <path
+                                strokeLinecap="round"
+                                strokeLinejoin="round"
+                                strokeWidth={2}
+                                d="M13 10V3L4 14h7v7l9-11h-7z"
+                              />
+                            </svg>
+                          );
+                        })()}
                       </div>
 
                       {/* Badges en el header */}
@@ -808,6 +1141,289 @@ export default function CategoriesPage() {
             </div>
           </div>
         </div>
+      )}
+
+      {/* Modal de Upload CSV */}
+      {showUploadModal && (
+        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+          <div className="bg-bg-secondary border border-border rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+            {/* Header */}
+            <div className="sticky top-0 bg-bg-secondary border-b border-border p-6 z-10">
+              <div className="flex items-center justify-between">
+                <div>
+                  <h2 className="text-xl font-bold text-text-primary">Upload Masivo - Challenges</h2>
+                  <p className="text-sm text-text-secondary mt-1">
+                    Carga categorías y retos mediante archivos CSV
+                  </p>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowUploadModal(false);
+                    setCsvFile(null);
+                    setActiveTab('categories');
+                  }}
+                  className="w-10 h-10 rounded-xl bg-bg-tertiary hover:bg-border border border-border flex items-center justify-center transition-colors"
+                >
+                  <svg className="w-5 h-5 text-text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+
+            {/* Tabs */}
+            <div className="border-b border-border bg-bg-tertiary/50">
+              <div className="flex gap-1 px-6">
+                <button
+                  onClick={() => {
+                    setActiveTab('categories');
+                    setCsvFile(null);
+                  }}
+                  className={`px-6 py-3 font-medium transition-all duration-200 border-b-2 ${
+                    activeTab === 'categories'
+                      ? 'border-brand-yellow text-brand-yellow'
+                      : 'border-transparent text-text-secondary hover:text-text-primary'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10" />
+                    </svg>
+                    Agregar Categorías
+                  </div>
+                </button>
+
+                <button
+                  onClick={() => {
+                    setActiveTab('challenges');
+                    setCsvFile(null);
+                  }}
+                  className={`px-6 py-3 font-medium transition-all duration-200 border-b-2 ${
+                    activeTab === 'challenges'
+                      ? 'border-brand-purple text-brand-purple'
+                      : 'border-transparent text-text-secondary hover:text-text-primary'
+                  }`}
+                >
+                  <div className="flex items-center gap-2">
+                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 10V3L4 14h7v7l9-11h-7z" />
+                    </svg>
+                    Agregar Retos
+                  </div>
+                </button>
+              </div>
+            </div>
+
+            {/* Content */}
+            <div className="p-6">
+              {/* Tab: Agregar Categorías */}
+              {activeTab === 'categories' && (
+                <div className="space-y-6">
+                  <div className="bg-brand-yellow/5 border border-brand-yellow/20 rounded-xl p-4">
+                    <h3 className="font-bold text-brand-yellow mb-2 flex items-center gap-2">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Formato del CSV para Categorías
+                    </h3>
+                    <p className="text-sm text-text-secondary mb-2">El archivo debe incluir estas columnas:</p>
+                    <div className="text-sm text-text-secondary space-y-2">
+                      <div>
+                        <p className="font-bold text-text-primary mb-1">Campos Obligatorios:</p>
+                        <ul className="list-disc list-inside space-y-1 ml-2">
+                          <li><strong>icon:</strong> Nombre del ícono (ej: flash, trophy)</li>
+                          <li><strong>text_color:</strong> Color hexadecimal (ej: #FFFFFF)</li>
+                          <li><strong>min_players, max_players:</strong> Número de jugadores</li>
+                          <li><strong>gradient_color1, gradient_color2:</strong> Colores del gradiente</li>
+                          <li><strong>age_rating:</strong> ALL, TEEN o ADULT</li>
+                          <li><strong>is_premium, is_active:</strong> true o false</li>
+                          <li><strong>title_es, title_en:</strong> Títulos en español e inglés</li>
+                        </ul>
+                      </div>
+                      <div>
+                        <p className="font-bold text-text-primary mb-1">Campos Opcionales:</p>
+                        <ul className="list-disc list-inside space-y-1 ml-2">
+                          <li><strong>description_es, description_en:</strong> Descripción de la categoría</li>
+                          <li><strong>instructions_es, instructions_en:</strong> Instrucciones para los retos</li>
+                          <li><strong>tags_es, tags_en:</strong> Etiquetas separadas por comas</li>
+                          <li><strong>title_fr, description_fr, instructions_fr, tags_fr:</strong> Traducciones en francés</li>
+                          <li><strong>title_pt, description_pt, instructions_pt, tags_pt:</strong> Traducciones en portugués</li>
+                        </ul>
+                      </div>
+                    </div>
+                    <button
+                      onClick={downloadExampleCategories}
+                      className="mt-4 px-4 py-2 bg-brand-yellow text-black rounded-lg text-sm font-semibold hover:bg-brand-yellow/90 transition-colors"
+                    >
+                      Descargar CSV de ejemplo
+                    </button>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-text-primary mb-2">Archivo CSV</label>
+                    <input
+                      type="file"
+                      accept=".csv"
+                      onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
+                      className="block w-full text-sm text-text-secondary file:mr-4 file:py-3 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-brand-yellow file:text-black hover:file:bg-brand-yellow/90 file:cursor-pointer cursor-pointer"
+                      disabled={isUploading}
+                    />
+                    {csvFile && (
+                      <p className="mt-2 text-sm text-text-secondary">
+                        Archivo seleccionado: <span className="font-medium text-text-primary">{csvFile.name}</span>
+                      </p>
+                    )}
+                  </div>
+
+                  {uploadProgress.total > 0 && (
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm text-text-secondary">
+                        <span>Progreso: {uploadProgress.current} / {uploadProgress.total}</span>
+                        <span>{Math.round((uploadProgress.current / uploadProgress.total) * 100)}%</span>
+                      </div>
+                      <div className="w-full bg-bg-tertiary rounded-full h-2">
+                        <div
+                          className="bg-brand-yellow h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${(uploadProgress.current / uploadProgress.total) * 100}%` }}
+                        ></div>
+                      </div>
+                      {uploadProgress.errors.length > 0 && (
+                        <div className="mt-4 p-4 bg-error/10 border border-error/30 rounded-xl max-h-60 overflow-y-auto">
+                          <h4 className="font-bold text-error mb-2">Errores encontrados:</h4>
+                          <ul className="text-sm text-error space-y-1">
+                            {uploadProgress.errors.map((error, idx) => (
+                              <li key={idx}>{error}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <button
+                    onClick={handleUploadCategories}
+                    disabled={!csvFile || isUploading}
+                    className="w-full px-6 py-3 bg-brand-yellow hover:bg-brand-yellow/90 text-black font-bold rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isUploading ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <div className="w-5 h-5 border-2 border-black/30 border-t-black rounded-full animate-spin"></div>
+                        Subiendo categorías...
+                      </span>
+                    ) : (
+                      'Subir Categorías'
+                    )}
+                  </button>
+                </div>
+              )}
+
+              {/* Tab: Agregar Retos */}
+              {activeTab === 'challenges' && (
+                <div className="space-y-6">
+                  <div className="bg-brand-purple/5 border border-brand-purple/20 rounded-xl p-4">
+                    <h3 className="font-bold text-brand-purple mb-2 flex items-center gap-2">
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                      </svg>
+                      Formato del CSV para Retos
+                    </h3>
+                    <p className="text-sm text-text-secondary mb-2">El archivo debe incluir estas columnas:</p>
+                    <div className="text-sm text-text-secondary space-y-2">
+                      <div>
+                        <p className="font-bold text-text-primary mb-1">Campos Obligatorios:</p>
+                        <ul className="list-disc list-inside space-y-1 ml-2">
+                          <li><strong className="text-red-500">category_id:</strong> ID de la categoría padre (obtenerlo de la tabla)</li>
+                          <li><strong>icon:</strong> Nombre del ícono de Ionicons (ej: game-controller, trophy, musical-notes)</li>
+                          <li><strong>is_active:</strong> true o false</li>
+                          <li><strong>text_es, text_en:</strong> Texto del reto en español e inglés</li>
+                        </ul>
+                      </div>
+                      <div>
+                        <p className="font-bold text-text-primary mb-1">Campos Opcionales:</p>
+                        <ul className="list-disc list-inside space-y-1 ml-2">
+                          <li><strong>is_premium:</strong> true o false</li>
+                          <li><strong>text_fr, text_pt:</strong> Traducciones en francés y portugués</li>
+                        </ul>
+                      </div>
+                    </div>
+                    <button
+                      onClick={downloadExampleChallenges}
+                      className="mt-4 px-4 py-2 bg-brand-purple text-white rounded-lg text-sm font-semibold hover:bg-brand-purple/90 transition-colors"
+                    >
+                      Descargar CSV de ejemplo
+                    </button>
+                  </div>
+
+                  <div>
+                    <label className="block text-sm font-medium text-text-primary mb-2">Archivo CSV</label>
+                    <input
+                      type="file"
+                      accept=".csv"
+                      onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
+                      className="block w-full text-sm text-text-secondary file:mr-4 file:py-3 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-brand-purple file:text-white hover:file:bg-brand-purple/90 file:cursor-pointer cursor-pointer"
+                      disabled={isUploading}
+                    />
+                    {csvFile && (
+                      <p className="mt-2 text-sm text-text-secondary">
+                        Archivo seleccionado: <span className="font-medium text-text-primary">{csvFile.name}</span>
+                      </p>
+                    )}
+                  </div>
+
+                  {uploadProgress.total > 0 && (
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm text-text-secondary">
+                        <span>Progreso: {uploadProgress.current} / {uploadProgress.total}</span>
+                        <span>{Math.round((uploadProgress.current / uploadProgress.total) * 100)}%</span>
+                      </div>
+                      <div className="w-full bg-bg-tertiary rounded-full h-2">
+                        <div
+                          className="bg-brand-purple h-2 rounded-full transition-all duration-300"
+                          style={{ width: `${(uploadProgress.current / uploadProgress.total) * 100}%` }}
+                        ></div>
+                      </div>
+                      {uploadProgress.errors.length > 0 && (
+                        <div className="mt-4 p-4 bg-error/10 border border-error/30 rounded-xl max-h-60 overflow-y-auto">
+                          <h4 className="font-bold text-error mb-2">Errores encontrados:</h4>
+                          <ul className="text-sm text-error space-y-1">
+                            {uploadProgress.errors.map((error, idx) => (
+                              <li key={idx}>{error}</li>
+                            ))}
+                          </ul>
+                        </div>
+                      )}
+                    </div>
+                  )}
+
+                  <button
+                    onClick={handleUploadChallenges}
+                    disabled={!csvFile || isUploading}
+                    className="w-full px-6 py-3 bg-brand-purple hover:bg-brand-purple/90 text-white font-bold rounded-xl transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {isUploading ? (
+                      <span className="flex items-center justify-center gap-2">
+                        <div className="w-5 h-5 border-2 border-white/30 border-t-white rounded-full animate-spin"></div>
+                        Subiendo retos...
+                      </span>
+                    ) : (
+                      'Subir Retos'
+                    )}
+                  </button>
+                </div>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* Toast notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          duration={toast.duration}
+          onClose={hideToast}
+        />
       )}
     </div>
   );

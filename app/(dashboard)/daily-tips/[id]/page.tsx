@@ -1,6 +1,6 @@
 'use client';
 
-import { useState, useEffect } from 'react';
+import { useState, useEffect, use } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
@@ -21,7 +21,13 @@ interface DailyTip {
   updated_at: string;
 }
 
-export default function EditDailyTipPage({ params }: { params: { id: string } }) {
+interface PageProps {
+  params: Promise<{ id: string }>;
+}
+
+export default function EditDailyTipPage({ params }: PageProps) {
+  const resolvedParams = use(params);
+  const tipId = resolvedParams.id;
   const { supabase } = useAuth();
   const router = useRouter();
   const [tip, setTip] = useState<DailyTip | null>(null);
@@ -36,7 +42,7 @@ export default function EditDailyTipPage({ params }: { params: { id: string } })
 
   useEffect(() => {
     loadTip();
-  }, [params.id]);
+  }, [tipId]);
 
   const loadTip = async () => {
     try {
@@ -52,7 +58,7 @@ export default function EditDailyTipPage({ params }: { params: { id: string } })
             text
           )
         `)
-        .eq('id', params.id)
+        .eq('id', tipId)
         .single();
 
       if (tipError) throw tipError;
@@ -230,7 +236,7 @@ export default function EditDailyTipPage({ params }: { params: { id: string } })
           is_active: isActive,
           updated_at: new Date().toISOString(),
         })
-        .eq('id', params.id);
+        .eq('id', tipId);
 
       if (tipError) throw tipError;
 
@@ -238,13 +244,13 @@ export default function EditDailyTipPage({ params }: { params: { id: string } })
       const { error: deleteError } = await supabase
         .from('daily_tip_translations')
         .delete()
-        .eq('tip_id', params.id);
+        .eq('tip_id', tipId);
 
       if (deleteError) throw deleteError;
 
       // 3. Insertar las nuevas traducciones
       const translationsToInsert = selectedLanguages.map((lang) => ({
-        tip_id: params.id,
+        tip_id: tipId,
         language_code: lang,
         text: translations[lang].text.trim(),
       }));

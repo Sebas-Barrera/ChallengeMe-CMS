@@ -1,6 +1,7 @@
 'use client';
 
 import { useState, useRef, useEffect } from 'react';
+import { createPortal } from 'react-dom';
 import * as IoIcons from 'react-icons/io5';
 
 // Lista de íconos populares de Ionicons (puedes agregar más)
@@ -15,6 +16,7 @@ const POPULAR_ICONS = [
   'IoBalloon',
   'IoGift',
   'IoMusicalNotes',
+  'IoMusicalNote',
   'IoChatbubbles',
   'IoThumbsUp',
   'IoHappy',
@@ -88,7 +90,6 @@ const POPULAR_ICONS = [
   'IoRibbon',
   'IoMedal',
   'IoRadio',
-  'IoMusicalNote',
   'IoAlbums',
   'IoDisc',
   'IoGlobe',
@@ -118,6 +119,15 @@ const convertToIoniconsName = (reactIconName: string): string => {
     .substring(1); // Quitar el primer guión
 };
 
+// Convertir nombre de Ionicons a nombre de React Icons
+// Ejemplo: trophy -> IoTrophy, game-controller -> IoGameController
+const convertToReactIconName = (ionicName: string): string => {
+  return 'Io' + ionicName
+    .split('-')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join('');
+};
+
 interface IconPickerProps {
   label?: string;
   value: string;
@@ -139,20 +149,36 @@ export default function IconPicker({
 }: IconPickerProps) {
   const [isOpen, setIsOpen] = useState(false);
   const [searchTerm, setSearchTerm] = useState('');
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [dropdownPosition, setDropdownPosition] = useState({ top: 0, left: 0, width: 0 });
+  const [mounted, setMounted] = useState(false);
+  const buttonRef = useRef<HTMLButtonElement>(null);
   const inputRef = useRef<HTMLInputElement>(null);
 
-  // Cerrar dropdown al hacer clic fuera
   useEffect(() => {
-    const handleClickOutside = (event: MouseEvent) => {
-      if (dropdownRef.current && !dropdownRef.current.contains(event.target as Node)) {
-        setIsOpen(false);
-      }
-    };
-
-    document.addEventListener('mousedown', handleClickOutside);
-    return () => document.removeEventListener('mousedown', handleClickOutside);
+    setMounted(true);
   }, []);
+
+  useEffect(() => {
+    if (isOpen && inputRef.current) {
+      const rect = inputRef.current.getBoundingClientRect();
+      setDropdownPosition({
+        top: rect.bottom + 8,
+        left: rect.left,
+        width: rect.width,
+      });
+    }
+  }, [isOpen]);
+
+  // Deshabilitar scroll del body cuando el dropdown está abierto
+  useEffect(() => {
+    if (isOpen) {
+      const originalOverflow = document.body.style.overflow;
+      document.body.style.overflow = 'hidden';
+      return () => {
+        document.body.style.overflow = originalOverflow;
+      };
+    }
+  }, [isOpen]);
 
   // Filtrar íconos basado en el término de búsqueda
   const filteredIcons = POPULAR_ICONS.filter((iconName) => {
@@ -180,17 +206,11 @@ export default function IconPicker({
 
   // Obtener el componente del ícono actual
   const CurrentIcon = value
-    ? IoIcons[
-        ('Io' +
-          value
-            .split('-')
-            .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
-            .join('')) as keyof typeof IoIcons
-      ] || null
+    ? IoIcons[convertToReactIconName(value) as keyof typeof IoIcons] || null
     : null;
 
   return (
-    <div className="relative" ref={dropdownRef}>
+    <div className="relative">
       {label && (
         <label className="block text-sm font-medium text-text-primary mb-2">
           {label}
@@ -224,6 +244,7 @@ export default function IconPicker({
           />
           {/* Botón para abrir/cerrar dropdown */}
           <button
+            ref={buttonRef}
             type="button"
             onClick={() => setIsOpen(!isOpen)}
             className="absolute right-3 top-1/2 -translate-y-1/2 text-text-tertiary hover:text-text-primary transition-colors"
@@ -245,57 +266,83 @@ export default function IconPicker({
             </svg>
           </button>
         </div>
+      </div>
 
-        {/* Dropdown de íconos */}
-        {isOpen && (
-          <div className="absolute z-50 w-full mt-2 bg-bg-secondary border border-border rounded-xl shadow-xl shadow-black/20 max-h-80 overflow-y-auto">
+      {/* Helper text o error */}
+      {(helperText || error) && (
+        <p
+          className={`mt-1.5 text-xs ${
+            error ? 'text-danger' : 'text-text-tertiary'
+          }`}
+        >
+          {error || helperText}
+        </p>
+      )}
+
+      {/* Dropdown de íconos - Renderizado con Portal */}
+      {mounted && isOpen && createPortal(
+        <>
+          {/* Backdrop */}
+          <div
+            className="fixed inset-0 bg-black/20 z-99999"
+            onClick={() => setIsOpen(false)}
+            onWheel={(e) => e.preventDefault()}
+          />
+
+          {/* Icon Grid Dropdown */}
+          <div
+            className="fixed z-100000 bg-bg-secondary border border-border rounded-xl shadow-2xl shadow-black/50 p-4 max-h-96 overflow-y-auto"
+            style={{
+              top: `${dropdownPosition.top}px`,
+              left: `${dropdownPosition.left}px`,
+              width: `${dropdownPosition.width}px`,
+            }}
+          >
             {filteredIcons.length > 0 ? (
-              <div className="p-2">
-                <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
-                  {filteredIcons.map((iconName) => {
-                    const IconComponent =
-                      IoIcons[iconName as keyof typeof IoIcons];
-                    const ionicName = convertToIoniconsName(iconName);
-                    const isSelected = value === ionicName;
+              <div className="grid grid-cols-4 sm:grid-cols-6 gap-2">
+                {filteredIcons.map((iconName) => {
+                  const IconComponent =
+                    IoIcons[iconName as keyof typeof IoIcons];
+                  const ionicName = convertToIoniconsName(iconName);
+                  const isSelected = value === ionicName;
 
-                    return (
-                      <button
-                        key={iconName}
-                        type="button"
-                        onClick={() => handleIconSelect(iconName)}
-                        className={`
-                          group relative p-3 rounded-xl border transition-all duration-200
-                          hover:border-brand-yellow/50 hover:bg-brand-yellow/10
-                          ${
-                            isSelected
-                              ? 'border-brand-yellow bg-brand-yellow/10'
-                              : 'border-border bg-bg-tertiary'
-                          }
-                        `}
-                        title={ionicName}
-                      >
-                        <div className="flex flex-col items-center gap-1.5">
-                          {IconComponent && (
-                            <IconComponent
-                              size={24}
-                              className={`
-                                transition-colors
-                                ${
-                                  isSelected
-                                    ? 'text-brand-yellow'
-                                    : 'text-text-secondary group-hover:text-brand-yellow'
-                                }
-                              `}
-                            />
-                          )}
-                          <span className="text-[10px] text-text-tertiary group-hover:text-text-secondary truncate w-full text-center">
-                            {ionicName.split('-')[0]}
-                          </span>
-                        </div>
-                      </button>
-                    );
-                  })}
-                </div>
+                  return (
+                    <button
+                      key={iconName}
+                      type="button"
+                      onClick={() => handleIconSelect(iconName)}
+                      className={`
+                        group relative p-3 rounded-xl border transition-all duration-200
+                        hover:border-brand-yellow/50 hover:bg-brand-yellow/10
+                        ${
+                          isSelected
+                            ? 'border-brand-yellow bg-brand-yellow/10'
+                            : 'border-border bg-bg-tertiary'
+                        }
+                      `}
+                      title={ionicName}
+                    >
+                      <div className="flex flex-col items-center gap-1.5">
+                        {IconComponent && (
+                          <IconComponent
+                            size={24}
+                            className={`
+                              transition-colors
+                              ${
+                                isSelected
+                                  ? 'text-brand-yellow'
+                                  : 'text-text-secondary group-hover:text-brand-yellow'
+                              }
+                            `}
+                          />
+                        )}
+                        <span className="text-[10px] text-text-tertiary group-hover:text-text-secondary truncate w-full text-center">
+                          {ionicName.split('-')[0]}
+                        </span>
+                      </div>
+                    </button>
+                  );
+                })}
               </div>
             ) : (
               <div className="p-6 text-center">
@@ -321,18 +368,8 @@ export default function IconPicker({
               </div>
             )}
           </div>
-        )}
-      </div>
-
-      {/* Helper text o error */}
-      {(helperText || error) && (
-        <p
-          className={`mt-1.5 text-xs ${
-            error ? 'text-danger' : 'text-text-tertiary'
-          }`}
-        >
-          {error || helperText}
-        </p>
+        </>,
+        document.body
       )}
     </div>
   );

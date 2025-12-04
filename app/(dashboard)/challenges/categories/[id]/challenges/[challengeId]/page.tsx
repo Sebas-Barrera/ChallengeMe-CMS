@@ -3,13 +3,17 @@
 import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
+import Image from 'next/image';
 import Input from '@/components/ui/Input';
 import Textarea from '@/components/ui/Textarea';
 import Button from '@/components/ui/Button';
-import EmojiPicker from '@/components/ui/EmojiPicker';
+import Toast from '@/components/ui/Toast';
+import EmojiOrIconPicker from '@/components/ui/EmojiOrIconPicker';
 import LanguageSelector from '@/components/forms/LanguageSelector';
 import { useAuth } from '@/contexts/AuthContext';
+import { useToast } from '@/hooks/useToast';
 import { getLanguageByCode } from '@/constants/languages';
+import * as IoIcons from 'react-icons/io5';
 
 interface Translation {
   language_code: string;
@@ -26,12 +30,21 @@ interface PageProps {
   params: Promise<{ id: string; challengeId: string }>;
 }
 
+// Función helper para convertir nombre de ionicon a React Icon
+const convertToReactIconName = (ionicName: string): string => {
+  return 'Io' + ionicName
+    .split('-')
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join('');
+};
+
 export default function EditChallengePage({ params }: PageProps) {
   const router = useRouter();
   const resolvedParams = use(params);
   const categoryId = resolvedParams.id;
   const challengeId = resolvedParams.challengeId;
   const { supabase } = useAuth();
+  const { toast, showToast, hideToast } = useToast();
 
   const [isLoading, setIsLoading] = useState(false);
   const [isLoadingData, setIsLoadingData] = useState(true);
@@ -81,7 +94,7 @@ export default function EditChallengePage({ params }: PageProps) {
       }
 
       if (!challengeData) {
-        alert('Reto no encontrado');
+        showToast({ message: 'Reto no encontrado', type: 'error' });
         router.push(`/challenges/categories/${categoryId}/challenges`);
         return;
       }
@@ -109,7 +122,7 @@ export default function EditChallengePage({ params }: PageProps) {
       setTranslations(translationsData);
     } catch (error: any) {
       console.error('Error al cargar reto:', error);
-      alert('Error al cargar el reto: ' + error.message);
+      showToast({ message: 'Error al cargar el reto: ' + error.message, type: 'error' });
       router.push(`/challenges/categories/${categoryId}/challenges`);
     } finally {
       setIsLoadingData(false);
@@ -134,7 +147,7 @@ export default function EditChallengePage({ params }: PageProps) {
       const esTranslation = translations['es'];
 
       if (!esTranslation || !esTranslation.content || esTranslation.content.trim() === '') {
-        alert('Por favor, completa primero el contenido en español antes de auto-traducir');
+        showToast({ message: 'Por favor, completa primero el contenido en español antes de auto-traducir', type: 'warning' });
         return;
       }
 
@@ -163,7 +176,7 @@ export default function EditChallengePage({ params }: PageProps) {
       }
     } catch (error: any) {
       console.error('Error al auto-traducir:', error);
-      alert('Error al traducir: ' + (error.message || 'Intenta de nuevo'));
+      showToast({ message: 'Error al traducir: ' + (error.message || 'Intenta de nuevo'), type: 'error' });
     } finally {
       setTranslatingLanguage(null);
     }
@@ -180,7 +193,7 @@ export default function EditChallengePage({ params }: PageProps) {
       );
 
       if (missingContent.length > 0) {
-        alert('Por favor, completa el contenido para todos los idiomas seleccionados');
+        showToast({ message: 'Por favor, completa el contenido para todos los idiomas seleccionados', type: 'warning' });
         setIsLoading(false);
         return;
       }
@@ -226,11 +239,13 @@ export default function EditChallengePage({ params }: PageProps) {
       }
 
       // Éxito - redirigir
-      alert('¡Reto actualizado exitosamente!');
-      router.push(`/challenges/categories/${categoryId}/challenges`);
+      showToast({ message: '¡Reto actualizado exitosamente!', type: 'success' });
+      setTimeout(() => {
+        router.push(`/challenges/categories/${categoryId}/challenges`);
+      }, 1000);
     } catch (error: any) {
       console.error('Error:', error);
-      alert(error.message || 'Error al actualizar el reto. Por favor, intenta de nuevo.');
+      showToast({ message: error.message || 'Error al actualizar el reto. Por favor, intenta de nuevo.', type: 'error' });
     } finally {
       setIsLoading(false);
     }
@@ -293,23 +308,36 @@ export default function EditChallengePage({ params }: PageProps) {
       {/* Main Content */}
       <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         <form onSubmit={handleSubmit} className="space-y-8">
-          {/* Emoji del Reto */}
+          {/* Icono o Emoji del Reto */}
           <div className="bg-bg-secondary/80 backdrop-blur-sm border border-border rounded-2xl p-6 shadow-lg shadow-black/10">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-yellow/20 to-brand-yellow/5 border border-brand-yellow/30 flex items-center justify-center">
-                <span className="text-2xl">😊</span>
+                {(() => {
+                  if (!formData.icon) return null;
+
+                  // Intentar convertir a React Icon
+                  const IconComponent = IoIcons[convertToReactIconName(formData.icon) as keyof typeof IoIcons];
+
+                  // Si existe el componente, es un ionicon
+                  if (IconComponent) {
+                    return <IconComponent size={28} className="text-brand-yellow" />;
+                  }
+
+                  // Si no existe el componente, es un emoji
+                  return <span className="text-2xl">{formData.icon}</span>;
+                })()}
               </div>
               <div>
-                <h2 className="text-xl font-bold text-text-primary">Emoji del Reto</h2>
-                <p className="text-sm text-text-secondary">Selecciona un emoji que represente este reto</p>
+                <h2 className="text-xl font-bold text-text-primary">Icono o Emoji del Reto</h2>
+                <p className="text-sm text-text-secondary">Elige un emoji o un icono de Ionicons para representar este reto</p>
               </div>
             </div>
 
-            <EmojiPicker
-              label="Emoji"
+            <EmojiOrIconPicker
+              label="Icono / Emoji"
               value={formData.icon || ''}
               onChange={(value) => setFormData({ ...formData, icon: value || null })}
-              helperText="Selecciona un emoji para identificar visualmente este reto"
+              helperText="Selecciona un emoji o un icono para identificar visualmente este reto"
             />
           </div>
 
@@ -317,19 +345,34 @@ export default function EditChallengePage({ params }: PageProps) {
           <div className="bg-bg-secondary/80 backdrop-blur-sm border border-border rounded-2xl p-6 shadow-lg shadow-black/10">
             <div className="flex items-center gap-3 mb-6">
               <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-yellow/20 to-brand-yellow/5 border border-brand-yellow/30 flex items-center justify-center">
-                <svg
-                  className="w-6 h-6 text-brand-yellow"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
+                {formData.icon ? (
+                  (() => {
+                    // Intentar convertir a React Icon
+                    const IconComponent = IoIcons[convertToReactIconName(formData.icon) as keyof typeof IoIcons];
+
+                    // Si existe el componente, es un ionicon
+                    if (IconComponent) {
+                      return <IconComponent size={28} className="text-brand-yellow" />;
+                    }
+
+                    // Si no existe el componente, es un emoji
+                    return <span className="text-2xl">{formData.icon}</span>;
+                  })()
+                ) : (
+                  <svg
+                    className="w-6 h-6 text-brand-yellow"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
+                    />
+                  </svg>
+                )}
               </div>
               <div>
                 <h2 className="text-xl font-bold text-text-primary">Información General</h2>
@@ -517,6 +560,16 @@ export default function EditChallengePage({ params }: PageProps) {
           </div>
         </form>
       </main>
+
+      {/* Toast notification */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          duration={toast.duration}
+          onClose={hideToast}
+        />
+      )}
     </div>
   );
 }

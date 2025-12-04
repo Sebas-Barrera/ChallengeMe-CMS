@@ -45,7 +45,8 @@ export async function POST(request: NextRequest) {
     }
 
     // Verificar que exista la API key
-    const apiKey = process.env.GOOGLE_TRANSLATE_API_KEY;
+    // Primero intentar con la variable sin prefijo, luego con NEXT_PUBLIC_
+    const apiKey = process.env.GOOGLE_TRANSLATE_API_KEY || process.env.NEXT_PUBLIC_GOOGLE_TRANSLATE_API_KEY;
 
     if (!apiKey) {
       return NextResponse.json(
