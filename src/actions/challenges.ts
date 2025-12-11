@@ -224,3 +224,89 @@ export async function deleteChallenge(challengeId: string) {
     return { success: false, error: error.message || 'Error desconocido' };
   }
 }
+
+export async function deleteChallengeCategory(categoryId: string) {
+  try {
+    // Primero obtener el conteo de retos asociados
+    const { count: challengeCount, error: countError } = await supabaseAdmin
+      .from('challenges')
+      .select('*', { count: 'exact', head: true })
+      .eq('challenge_category_id', categoryId);
+
+    if (countError) {
+      console.error('Error counting challenges:', countError);
+    }
+
+    // Eliminar la categoría (CASCADE se encargará de eliminar:
+    // - challenge_category_translations
+    // - challenges
+    // - challenge_translations)
+    const { error } = await supabaseAdmin
+      .from('challenge_categories')
+      .delete()
+      .eq('id', categoryId);
+
+    if (error) {
+      return { success: false, error: error.message };
+    }
+
+    return { success: true, deletedChallenges: challengeCount || 0 };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Error desconocido' };
+  }
+}
+
+export async function createChallengeBulk(
+  challengeData: ChallengeData,
+  translations: Record<string, { content: string }>
+) {
+  try {
+    // 1. Insertar el challenge
+    const { data: challenge, error: challengeError } = await supabaseAdmin
+      .from('challenges')
+      .insert(challengeData)
+      .select('id')
+      .single();
+
+    if (challengeError) {
+      return { success: false, error: challengeError.message };
+    }
+
+    if (!challenge) {
+      return { success: false, error: 'No se pudo crear el reto' };
+    }
+
+    // 2. Preparar traducciones
+    const translationsToInsert: any[] = [];
+    Object.entries(translations).forEach(([langCode, trans]) => {
+      if (trans && trans.content) {
+        translationsToInsert.push({
+          challenge_id: challenge.id,
+          language_code: langCode,
+          content: trans.content,
+        });
+      }
+    });
+
+    if (translationsToInsert.length === 0) {
+      // Rollback: eliminar el challenge
+      await supabaseAdmin.from('challenges').delete().eq('id', challenge.id);
+      return { success: false, error: 'No hay traducciones válidas para insertar' };
+    }
+
+    // 3. Insertar traducciones
+    const { error: translationsError } = await supabaseAdmin
+      .from('challenge_translations')
+      .insert(translationsToInsert);
+
+    if (translationsError) {
+      // Rollback: eliminar el challenge
+      await supabaseAdmin.from('challenges').delete().eq('id', challenge.id);
+      return { success: false, error: translationsError.message };
+    }
+
+    return { success: true, data: challenge };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Error desconocido' };
+  }
+}

@@ -347,77 +347,28 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
     setIsProcessing(true);
 
     try {
-      // Separar actualizaciones de inserciones
-      const questionsToUpdate: string[] = [];
-      const questionsToInsert: { language_code: string; question: string }[] = [];
+      // Preparar todas las traducciones (actualizar e insertar)
+      const translations = editingLanguages.map((lang) => ({
+        language_code: lang,
+        question: editingQuestions[lang].question,
+      }));
 
-      editingLanguages.forEach((lang) => {
-        const questionData = editingQuestions[lang];
-        if (questionData.id) {
-          // Tiene ID, es una actualización
-          questionsToUpdate.push(lang);
-        } else {
-          // No tiene ID, es una nueva traducción
-          questionsToInsert.push({
-            language_code: lang,
-            question: questionData.question,
-          });
-        }
-      });
+      const questionData = {
+        icon: editingIcon || null,
+        is_active: editingIsActive,
+      };
 
-      // Actualizar preguntas existentes
-      for (const lang of questionsToUpdate) {
-        const questionData = editingQuestions[lang];
+      // Usar Server Action para actualizar
+      const { updateDeepTalkQuestion } = await import('@/actions/deepTalks');
+      const result = await updateDeepTalkQuestion(
+        selectedSortOrder,
+        deepTalkId,
+        questionData,
+        translations
+      );
 
-        const { error } = await (supabase
-          .from('deep_talk_questions') as any)
-          .update({
-            question: questionData.question,
-            icon: editingIcon || null,
-            is_active: editingIsActive,
-          })
-          .eq('id', questionData.id);
-
-        if (error) throw error;
-      }
-
-      // Insertar nuevas traducciones
-      if (questionsToInsert.length > 0) {
-        // Recorrer los sort_order existentes dentro de este deep_talk
-        const { data: existingQuestions } = await supabase
-          .from('deep_talk_questions')
-          .select('id, sort_order')
-          .eq('deep_talk_id', deepTalkId)
-          .gte('sort_order', selectedSortOrder)
-          .order('sort_order', { ascending: false });
-
-        // Actualizar cada uno incrementando su sort_order en 1
-        if (existingQuestions && existingQuestions.length > 0) {
-          for (const existing of existingQuestions) {
-            const newSortOrder = (existing as { id: string; sort_order: number }).sort_order + 1;
-            const existingId = (existing as { id: string; sort_order: number }).id;
-
-            await supabase
-              .from('deep_talk_questions')
-              .update({ sort_order: newSortOrder } as any)
-              .eq('id', existingId);
-          }
-        }
-
-        const newQuestions = questionsToInsert.map((q) => ({
-          deep_talk_id: deepTalkId,
-          language_code: q.language_code,
-          question: q.question,
-          icon: editingIcon || null,
-          sort_order: selectedSortOrder,
-          is_active: editingIsActive,
-        }));
-
-        const { error: insertError } = await supabase
-          .from('deep_talk_questions')
-          .insert(newQuestions as any);
-
-        if (insertError) throw insertError;
+      if (!result.success) {
+        throw new Error(result.error);
       }
 
       // Recargar datos
@@ -425,11 +376,7 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
 
       // Mostrar mensaje de éxito
       setShowEditModal(false);
-      setSuccessMessage(
-        questionsToInsert.length > 0
-          ? `Pregunta actualizada y ${questionsToInsert.length} traducción(es) agregada(s) exitosamente`
-          : 'Pregunta actualizada exitosamente'
-      );
+      setSuccessMessage('Pregunta actualizada exitosamente');
       setShowSuccessModal(true);
     } catch (error) {
       console.error('Error al actualizar pregunta:', error);
@@ -452,14 +399,11 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
     setIsProcessing(true);
 
     try {
-      // Actualizar el estado de todas las traducciones de la pregunta
-      for (const question of questionsForOrder) {
-        const { error } = await supabase
-          .from('deep_talk_questions')
-          .update({ is_active: newIsActive })
-          .eq('id', question.id);
+      const { toggleDeepTalkQuestionActive } = await import('@/actions/deepTalks');
+      const result = await toggleDeepTalkQuestionActive(deepTalkId, sortOrder, newIsActive);
 
-        if (error) throw error;
+      if (!result.success) {
+        throw new Error(result.error);
       }
 
       // Recargar datos
@@ -491,14 +435,11 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
     setIsProcessing(true);
 
     try {
-      // Eliminar todas las traducciones de la pregunta
-      for (const question of questionsForOrder) {
-        const { error } = await supabase
-          .from('deep_talk_questions')
-          .delete()
-          .eq('id', question.id);
+      const { deleteDeepTalkQuestion } = await import('@/actions/deepTalks');
+      const result = await deleteDeepTalkQuestion(deepTalkId, selectedSortOrder);
 
-        if (error) throw error;
+      if (!result.success) {
+        throw new Error(result.error);
       }
 
       // Recargar datos
@@ -643,39 +584,26 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
     setIsProcessing(true);
 
     try {
-      // 1. Reordenar preguntas existentes si es necesario
-      // Obtener todas las preguntas con sort_order >= selectedSortOrder
-      const questionsToReorder = deepTalk.deep_talk_questions.filter(
-        (q) => q.sort_order >= selectedSortOrder
-      );
-
-      // Si hay preguntas que reordenar, incrementar su sort_order en 1
-      if (questionsToReorder.length > 0) {
-        for (const question of questionsToReorder) {
-          await supabase
-            .from('deep_talk_questions')
-            .update({ sort_order: question.sort_order + 1 })
-            .eq('id', question.id);
-        }
-      }
-
-      // 2. Crear las preguntas en todos los idiomas
-      const questionsToInsert = languages.map((lang) => ({
+      const questionData = {
         deep_talk_id: deepTalkId,
-        language_code: lang,
-        question: newQuestions[lang],
-        icon: newIcon || null,
         sort_order: selectedSortOrder,
         is_active: newIsActive,
+        icon: newIcon || null,
+      };
+
+      const translations = languages.map((lang) => ({
+        language_code: lang,
+        question: newQuestions[lang],
       }));
 
-      const { error } = await (supabase
-        .from('deep_talk_questions') as any)
-        .insert(questionsToInsert);
+      const { createDeepTalkQuestion } = await import('@/actions/deepTalks');
+      const result = await createDeepTalkQuestion(questionData, translations);
 
-      if (error) throw error;
+      if (!result.success) {
+        throw new Error(result.error);
+      }
 
-      // 3. Recargar datos
+      // Recargar datos
       await fetchData();
 
       // Mostrar mensaje de éxito

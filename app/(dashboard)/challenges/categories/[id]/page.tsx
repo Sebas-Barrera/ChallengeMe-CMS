@@ -33,6 +33,7 @@ interface FormData {
   age_rating: 'ALL' | 'TEEN' | 'ADULT';
   is_premium: boolean;
   is_active: boolean;
+  sort_order: number;
 }
 
 export default function EditCategoryPage() {
@@ -62,6 +63,7 @@ export default function EditCategoryPage() {
     age_rating: 'ALL',
     is_premium: false,
     is_active: true,
+    sort_order: 0,
   });
 
   // Cargar datos de la categoría
@@ -105,6 +107,7 @@ export default function EditCategoryPage() {
         age_rating: categoryData.age_rating || 'ALL',
         is_premium: categoryData.is_premium,
         is_active: categoryData.is_active,
+        sort_order: (categoryData as any).sort_order || 0,
       });
 
       // Llenar traducciones
@@ -250,6 +253,7 @@ export default function EditCategoryPage() {
         age_rating: formData.age_rating,
         is_premium: formData.is_premium,
         is_active: formData.is_active,
+        sort_order: formData.sort_order,
       };
 
       // Preparar traducciones

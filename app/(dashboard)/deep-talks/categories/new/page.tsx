@@ -4,7 +4,6 @@ import { useState } from "react";
 import { useRouter } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { useAuth } from "@/contexts/AuthContext";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import IconPicker from "@/components/ui/IconPicker";
@@ -30,7 +29,6 @@ interface FormData {
 
 export default function NewDeepTalkCategoryPage() {
   const router = useRouter();
-  const { supabase } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
 
@@ -141,67 +139,30 @@ export default function NewDeepTalkCategoryPage() {
         return;
       }
 
-      // 1. Recorrer los sort_order existentes
-      const { data: existingFilters } = await supabase
-        .from("deep_talk_categories")
-        .select("id, sort_order")
-        .eq("game_mode_id", formData.game_mode_id)
-        .gte("sort_order", formData.sort_order)
-        .order("sort_order", { ascending: false });
+      // Preparar datos de la categoría
+      const categoryData = {
+        game_mode_id: formData.game_mode_id,
+        label: formData.label,
+        icon: formData.icon,
+        color: formData.color,
+        route: formData.route,
+        sort_order: formData.sort_order,
+        is_premium: formData.is_premium,
+        is_active: formData.is_active,
+      };
 
-      // Actualizar cada uno incrementando su sort_order en 1
-      if (existingFilters && existingFilters.length > 0) {
-        for (const existing of existingFilters) {
-          const newSortOrder =
-            (existing as { id: string; sort_order: number }).sort_order + 1;
-          const existingId = (existing as { id: string; sort_order: number })
-            .id;
-
-          await supabase
-            .from("deep_talk_categories")
-            .update({ sort_order: newSortOrder } as any)
-            .eq("id", existingId);
-        }
-      }
-
-      // 2. Insertar la categoría
-      const { data: category, error: categoryError } = await supabase
-        .from("deep_talk_categories")
-        .insert({
-          game_mode_id: formData.game_mode_id,
-          label: formData.label || null,
-          icon: formData.icon || null,
-          color: formData.color || null,
-          route: formData.route || null,
-          sort_order: formData.sort_order,
-          is_premium: formData.is_premium,
-          is_active: formData.is_active,
-        })
-        .select("id")
-        .single();
-
-      if (categoryError) {
-        throw new Error(categoryError.message);
-      }
-
-      // 3. Insertar traducciones
+      // Preparar traducciones
       const translationsToInsert = selectedLanguages.map((lang) => ({
-        deep_talk_category_id: category.id,
         language_code: lang,
         name: translations[lang].name,
       }));
 
-      const { error: translationsError } = await supabase
-        .from("deep_talk_categories_translations")
-        .insert(translationsToInsert);
+      // Usar Server Action para crear la categoría
+      const { createDeepTalkCategory } = await import('@/actions/deepTalks');
+      const result = await createDeepTalkCategory(categoryData, translationsToInsert);
 
-      if (translationsError) {
-        // Si falla, eliminar la categoría
-        await supabase
-          .from("deep_talk_categories")
-          .delete()
-          .eq("id", category.id);
-        throw new Error(translationsError.message);
+      if (!result.success) {
+        throw new Error(result.error);
       }
 
       // Éxito - mostrar modal de éxito

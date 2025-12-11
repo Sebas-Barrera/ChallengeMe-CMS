@@ -204,8 +204,8 @@ export default function DeepTalkCategoriesPage() {
           is_active: row.is_active === 'true' || row.is_active === '1',
           is_premium: row.is_premium === 'true' || row.is_premium === '1',
           translations: {
-            es: { name: row.name_es },
-            en: { name: row.name_en },
+            es: { name: row.name_es, language_code: 'es' },
+            en: { name: row.name_en, language_code: 'en' },
           }
         });
       }
@@ -218,88 +218,14 @@ export default function DeepTalkCategoriesPage() {
 
       setUploadProgress({ current: 0, total: filters.length, errors });
 
-      let successCount = 0;
-      const insertErrors: string[] = [...errors];
+      // Usar Server Action para insertar los filtros
+      const { uploadFiltersFromCSV } = await import('@/actions/deepTalks');
+      const result = await uploadFiltersFromCSV(filters);
 
-      // Insertar filtros uno por uno
-      for (let i = 0; i < filters.length; i++) {
-        const filter = filters[i];
-        setUploadProgress(prev => ({ ...prev, current: i + 1 }));
+      setUploadProgress(prev => ({ ...prev, errors: [...errors, ...result.errors] }));
 
-        try {
-          // 1. Recorrer los sort_order existentes si es necesario
-          // Obtener todos los filtros con sort_order >= al nuevo
-          const { data: existingFilters } = await supabase
-            .from('deep_talk_categories')
-            .select('id, sort_order')
-            .eq('game_mode_id', '33333333-3333-3333-3333-333333333333')
-            .gte('sort_order', filter.sort_order)
-            .order('sort_order', { ascending: false });
-
-          // Actualizar cada uno incrementando su sort_order en 1
-          if (existingFilters && existingFilters.length > 0) {
-            for (const existing of existingFilters) {
-              const newSortOrder = (existing as { id: string; sort_order: number }).sort_order + 1;
-              const existingId = (existing as { id: string; sort_order: number }).id;
-
-              await supabase
-                .from('deep_talk_categories')
-                .update({ sort_order: newSortOrder } as any)
-                .eq('id', existingId);
-            }
-          }
-
-          // 2. Insertar el filtro
-          const { data: filterData, error: filterError } = await supabase
-            .from('deep_talk_categories')
-            .insert({
-              label: filter.label,
-              icon: filter.icon,
-              color: filter.color,
-              route: filter.route,
-              sort_order: filter.sort_order,
-              is_active: filter.is_active,
-              is_premium: filter.is_premium,
-              game_mode_id: '33333333-3333-3333-3333-333333333333', // Deep Talks game mode
-            } as any)
-            .select('id')
-            .single();
-
-          if (filterError) {
-            insertErrors.push(`Filtro ${i + 1}: ${filterError.message}`);
-            continue;
-          }
-
-          // 2. Insertar traducciones
-          const translationsToInsert = Object.entries(filter.translations)
-            .filter(([_, translation]) => translation.name.trim() !== '')
-            .map(([lang, translation]) => ({
-              deep_talk_category_id: (filterData as any).id,
-              language_code: lang,
-              name: translation.name,
-            }));
-
-          const { error: translationsError } = await supabase
-            .from('deep_talk_categories_translations')
-            .insert(translationsToInsert as any);
-
-          if (translationsError) {
-            // Si falla, eliminar el filtro
-            await supabase.from('deep_talk_categories').delete().eq('id', (filterData as any).id);
-            insertErrors.push(`Filtro ${i + 1}: Error en traducciones - ${translationsError.message}`);
-            continue;
-          }
-
-          successCount++;
-        } catch (error: any) {
-          insertErrors.push(`Filtro ${i + 1}: ${error.message}`);
-        }
-      }
-
-      setUploadProgress(prev => ({ ...prev, errors: insertErrors }));
-
-      if (successCount > 0) {
-        setSuccessUploadMessage(`${successCount} filtro(s) subido(s) exitosamente`);
+      if (result.success && result.successCount > 0) {
+        setSuccessUploadMessage(`${result.successCount} filtro(s) subido(s) exitosamente`);
         setShowSuccessUploadModal(true);
         // Refrescar la lista de filtros
         await fetchFilters();
@@ -381,35 +307,40 @@ export default function DeepTalkCategoriesPage() {
           filter_label: row.filter_label,
           icon: row.icon || null,
           gradient_colors: gradientColors,
-          estimated_time: row.estimated_time || null,
+          estimated_time: row.estimated_time ? parseInt(row.estimated_time) : null,
           sort_order: parseInt(row.sort_order) || 0,
           is_active: row.is_active === 'true' || row.is_active === '1',
           translations: {
             es: {
+              language_code: 'es',
               title: row.title_es,
               subtitle: row.subtitle_es || '',
               description: row.description_es || '',
               intensity: row.intensity_es || null,
             },
             en: {
+              language_code: 'en',
               title: row.title_en,
               subtitle: row.subtitle_en || '',
               description: row.description_en || '',
               intensity: row.intensity_en || null,
             },
             pt: {
+              language_code: 'pt',
               title: row.title_pt || '',
               subtitle: row.subtitle_pt || '',
               description: row.description_pt || '',
               intensity: row.intensity_pt || null,
             },
             fr: {
+              language_code: 'fr',
               title: row.title_fr || '',
               subtitle: row.subtitle_fr || '',
               description: row.description_fr || '',
               intensity: row.intensity_fr || null,
             },
             it: {
+              language_code: 'it',
               title: row.title_it || '',
               subtitle: row.subtitle_it || '',
               description: row.description_it || '',
@@ -427,102 +358,14 @@ export default function DeepTalkCategoriesPage() {
 
       setUploadProgress({ current: 0, total: categories.length, errors });
 
-      let successCount = 0;
-      const insertErrors: string[] = [...errors];
+      // Usar Server Action para insertar las categorías
+      const { uploadCategoriesFromCSV } = await import('@/actions/deepTalks');
+      const result = await uploadCategoriesFromCSV(categories);
 
-      // Insertar categorías una por una
-      for (let i = 0; i < categories.length; i++) {
-        const category = categories[i];
-        setUploadProgress(prev => ({ ...prev, current: i + 1 }));
+      setUploadProgress(prev => ({ ...prev, errors: [...errors, ...result.errors] }));
 
-        try {
-          // 1. Buscar el filtro por label
-          const { data: filterData, error: filterError } = await supabase
-            .from('deep_talk_categories')
-            .select('id')
-            .eq('label', category.filter_label)
-            .single();
-
-          if (filterError || !filterData) {
-            insertErrors.push(`Categoría ${i + 1}: No se encontró filtro con label "${category.filter_label}"`);
-            continue;
-          }
-
-          const filterId = (filterData as any).id;
-
-          // 2. Recorrer los sort_order existentes dentro de este filtro
-          const { data: existingDeepTalks } = await supabase
-            .from('deep_talks')
-            .select('id, sort_order')
-            .eq('deep_talk_category_id', filterId)
-            .gte('sort_order', category.sort_order)
-            .order('sort_order', { ascending: false });
-
-          // Actualizar cada uno incrementando su sort_order en 1
-          if (existingDeepTalks && existingDeepTalks.length > 0) {
-            for (const existing of existingDeepTalks) {
-              const newSortOrder = (existing as { id: string; sort_order: number }).sort_order + 1;
-              const existingId = (existing as { id: string; sort_order: number }).id;
-
-              await supabase
-                .from('deep_talks')
-                .update({ sort_order: newSortOrder } as any)
-                .eq('id', existingId);
-            }
-          }
-
-          // 3. Insertar la categoría (deep_talk)
-          const { data: deepTalkData, error: deepTalkError } = await supabase
-            .from('deep_talks')
-            .insert({
-              deep_talk_category_id: filterId,
-              icon: category.icon,
-              gradient_colors: category.gradient_colors,
-              estimated_time: category.estimated_time,
-              sort_order: category.sort_order,
-              is_active: category.is_active,
-            } as any)
-            .select('id')
-            .single();
-
-          if (deepTalkError) {
-            insertErrors.push(`Categoría ${i + 1}: ${deepTalkError.message}`);
-            continue;
-          }
-
-          // 3. Insertar traducciones
-          const translationsToInsert = Object.entries(category.translations)
-            .filter(([_, translation]) => translation.title.trim() !== '')
-            .map(([lang, translation]) => ({
-              deep_talk_id: (deepTalkData as any).id,
-              language_code: lang,
-              title: translation.title,
-              subtitle: translation.subtitle || null,
-              description: translation.description || null,
-              intensity: translation.intensity || null,
-            }));
-
-          const { error: translationsError } = await supabase
-            .from('deep_talk_translations')
-            .insert(translationsToInsert as any);
-
-          if (translationsError) {
-            // Si falla, eliminar la categoría
-            await supabase.from('deep_talks').delete().eq('id', (deepTalkData as any).id);
-            insertErrors.push(`Categoría ${i + 1}: Error en traducciones - ${translationsError.message}`);
-            continue;
-          }
-
-          successCount++;
-        } catch (error: any) {
-          insertErrors.push(`Categoría ${i + 1}: ${error.message}`);
-        }
-      }
-
-      setUploadProgress(prev => ({ ...prev, errors: insertErrors }));
-
-      if (successCount > 0) {
-        setSuccessUploadMessage(`${successCount} categoría(s) subida(s) exitosamente`);
+      if (result.success && result.successCount > 0) {
+        setSuccessUploadMessage(`${result.successCount} categoría(s) subida(s) exitosamente`);
         setShowSuccessUploadModal(true);
         // Refrescar la lista de filtros
         await fetchFilters();
@@ -549,13 +392,12 @@ export default function DeepTalkCategoriesPage() {
     setIsDeleting(true);
 
     try {
-      // 1. Eliminar el filtro (esto también eliminará las traducciones y categorías relacionadas por CASCADE)
-      const { error: deleteError } = await supabase
-        .from('deep_talk_categories')
-        .delete()
-        .eq('id', filterToDelete);
+      const { deleteDeepTalkCategory } = await import('@/actions/deepTalks');
+      const result = await deleteDeepTalkCategory(filterToDelete);
 
-      if (deleteError) throw deleteError;
+      if (!result.success) {
+        throw new Error(result.error);
+      }
 
       // Recargar la lista de filtros
       await fetchFilters();
@@ -586,13 +428,12 @@ export default function DeepTalkCategoriesPage() {
     setIsDeletingCategory(true);
 
     try {
-      // Eliminar la categoría (esto también eliminará las preguntas y traducciones por CASCADE)
-      const { error: deleteError } = await supabase
-        .from('deep_talks')
-        .delete()
-        .eq('id', categoryToDelete);
+      const { deleteDeepTalk } = await import('@/actions/deepTalks');
+      const result = await deleteDeepTalk(categoryToDelete);
 
-      if (deleteError) throw deleteError;
+      if (!result.success) {
+        throw new Error(result.error);
+      }
 
       // Recargar la lista de filtros y categorías
       await fetchFilters();
@@ -676,11 +517,11 @@ export default function DeepTalkCategoriesPage() {
           sort_order: parseInt(row.sort_order) || 0,
           is_active: row.is_active === 'true' || row.is_active === '1',
           translations: {
-            es: row.question_es,
-            en: row.question_en,
-            pt: row.question_pt || '',
-            fr: row.question_fr || '',
-            it: row.question_it || '',
+            es: { question: row.question_es, language_code: 'es' },
+            en: { question: row.question_en, language_code: 'en' },
+            pt: { question: row.question_pt || '', language_code: 'pt' },
+            fr: { question: row.question_fr || '', language_code: 'fr' },
+            it: { question: row.question_it || '', language_code: 'it' },
           }
         });
       }
@@ -693,82 +534,14 @@ export default function DeepTalkCategoriesPage() {
 
       setUploadProgress({ current: 0, total: questions.length, errors });
 
-      let successCount = 0;
-      const insertErrors: string[] = [...errors];
+      // Usar Server Action para insertar las preguntas
+      const { uploadQuestionsFromCSV } = await import('@/actions/deepTalks');
+      const result = await uploadQuestionsFromCSV(questions);
 
-      // Insertar preguntas una por una
-      for (let i = 0; i < questions.length; i++) {
-        const question = questions[i];
-        setUploadProgress(prev => ({ ...prev, current: i + 1 }));
+      setUploadProgress(prev => ({ ...prev, errors: [...errors, ...result.errors] }));
 
-        try {
-          // 1. Buscar el deep_talk por el título en español
-          const { data: deepTalkData, error: deepTalkError } = await supabase
-            .from('deep_talk_translations')
-            .select('deep_talk_id')
-            .eq('language_code', 'es')
-            .eq('title', question.category_title_es)
-            .single();
-
-          if (deepTalkError || !deepTalkData) {
-            insertErrors.push(`Pregunta ${i + 1}: No se encontró categoría con título "${question.category_title_es}"`);
-            continue;
-          }
-
-          const deepTalkId = (deepTalkData as any).deep_talk_id;
-
-          // 2. Recorrer los sort_order existentes dentro de este deep_talk
-          const { data: existingQuestions } = await supabase
-            .from('deep_talk_questions')
-            .select('id, sort_order')
-            .eq('deep_talk_id', deepTalkId)
-            .gte('sort_order', question.sort_order)
-            .order('sort_order', { ascending: false });
-
-          // Actualizar cada uno incrementando su sort_order en 1
-          if (existingQuestions && existingQuestions.length > 0) {
-            for (const existing of existingQuestions) {
-              const newSortOrder = (existing as { id: string; sort_order: number }).sort_order + 1;
-              const existingId = (existing as { id: string; sort_order: number }).id;
-
-              await supabase
-                .from('deep_talk_questions')
-                .update({ sort_order: newSortOrder } as any)
-                .eq('id', existingId);
-            }
-          }
-
-          // 3. Insertar las preguntas en todos los idiomas
-          const questionsToInsert = Object.entries(question.translations)
-            .filter(([_, questionText]) => questionText.trim() !== '')
-            .map(([lang, questionText]) => ({
-              deep_talk_id: deepTalkId,
-              language_code: lang,
-              question: questionText,
-              icon: question.icon,
-              sort_order: question.sort_order,
-              is_active: question.is_active,
-            }));
-
-          const { error: questionsError } = await supabase
-            .from('deep_talk_questions')
-            .insert(questionsToInsert as any);
-
-          if (questionsError) {
-            insertErrors.push(`Pregunta ${i + 1}: Error al insertar - ${questionsError.message}`);
-            continue;
-          }
-
-          successCount++;
-        } catch (error: any) {
-          insertErrors.push(`Pregunta ${i + 1}: ${error.message}`);
-        }
-      }
-
-      setUploadProgress(prev => ({ ...prev, errors: insertErrors }));
-
-      if (successCount > 0) {
-        setSuccessUploadMessage(`${successCount} pregunta(s) subida(s) exitosamente`);
+      if (result.success && result.successCount > 0) {
+        setSuccessUploadMessage(`${result.successCount} pregunta(s) subida(s) exitosamente`);
         setShowSuccessUploadModal(true);
         // Refrescar la lista (opcional, las preguntas no se muestran en esta vista)
         await fetchFilters();

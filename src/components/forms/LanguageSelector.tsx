@@ -11,15 +11,7 @@ export default function LanguageSelector({
   selectedLanguages,
   onChange,
 }: LanguageSelectorProps) {
-  // Idiomas obligatorios
-  const requiredLanguages = ['es', 'en'];
-
   const toggleLanguage = (code: string) => {
-    // No permitir deseleccionar idiomas obligatorios
-    if (requiredLanguages.includes(code)) {
-      return;
-    }
-
     if (selectedLanguages.includes(code)) {
       // No permitir deseleccionar el último idioma
       if (selectedLanguages.length === 1) return;
@@ -37,7 +29,6 @@ export default function LanguageSelector({
       <div className="grid grid-cols-2 sm:grid-cols-2 md:grid-cols-4 gap-3">
         {SUPPORTED_LANGUAGES.map((language) => {
           const isSelected = selectedLanguages.includes(language.code);
-          const isRequired = requiredLanguages.includes(language.code);
           const isOnlySelected = isSelected && selectedLanguages.length === 1;
 
           return (
@@ -45,7 +36,7 @@ export default function LanguageSelector({
               key={language.code}
               type="button"
               onClick={() => toggleLanguage(language.code)}
-              disabled={isOnlySelected || isRequired}
+              disabled={isOnlySelected}
               className={`
                 relative px-4 py-3 rounded-xl border-2 transition-all duration-200
                 ${
@@ -53,17 +44,15 @@ export default function LanguageSelector({
                     ? 'border-brand-yellow bg-brand-yellow/10 shadow-lg shadow-brand-yellow/20'
                     : 'border-border bg-bg-tertiary hover:border-border-light'
                 }
-                ${isOnlySelected || isRequired ? 'opacity-75 cursor-not-allowed' : 'cursor-pointer'}
+                ${isOnlySelected ? 'opacity-75 cursor-not-allowed' : 'cursor-pointer'}
                 group
               `}
             >
-              {/* Checkmark o Required Badge */}
+              {/* Checkmark */}
               {isSelected && (
-                <div className={`absolute top-1 right-1 w-5 h-5 rounded-full flex items-center justify-center ${
-                  isRequired ? 'bg-brand-blue' : 'bg-brand-yellow'
-                }`}>
+                <div className="absolute top-1 right-1 w-5 h-5 rounded-full bg-brand-yellow flex items-center justify-center">
                   <svg
-                    className={`w-3 h-3 ${isRequired ? 'text-white' : 'text-black'}`}
+                    className="w-3 h-3 text-black"
                     fill="currentColor"
                     viewBox="0 0 20 20"
                   >
@@ -73,15 +62,6 @@ export default function LanguageSelector({
                       clipRule="evenodd"
                     />
                   </svg>
-                </div>
-              )}
-
-              {/* Badge de obligatorio */}
-              {isRequired && (
-                <div className="absolute -top-2 -left-2">
-                  <span className="px-2 py-0.5 bg-brand-blue text-white text-xs font-bold rounded-md shadow-lg">
-                    Obligatorio
-                  </span>
                 </div>
               )}
 
@@ -99,7 +79,7 @@ export default function LanguageSelector({
         })}
       </div>
       <p className="mt-2 text-sm text-text-tertiary">
-        <span className="font-medium text-brand-blue">Español e Inglés son obligatorios.</span> Puedes agregar idiomas adicionales.
+        Selecciona al menos un idioma.
       </p>
     </div>
   );

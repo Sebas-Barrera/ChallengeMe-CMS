@@ -40,6 +40,7 @@ interface Category {
   is_premium: boolean;
   min_players: number;
   max_players: number;
+  sort_order: number;
   challenge_count: number;
   translations: Record<string, Translation>;
 }
@@ -124,29 +125,12 @@ export default function CategoriesPage() {
     try {
       setIsDeleting(true);
 
-      // Paso 1: Obtener el conteo de retos asociados para el mensaje
-      const { count: challengeCount, error: countError } = await supabase
-        .from('challenges')
-        .select('*', { count: 'exact', head: true })
-        .eq('challenge_category_id', categoryToDelete.id);
+      // Importar y usar la Server Action
+      const { deleteChallengeCategory } = await import('@/actions/challenges');
+      const result = await deleteChallengeCategory(categoryToDelete.id);
 
-      if (countError) {
-        console.error('Error counting challenges:', countError);
-      }
-
-      // Paso 2: Eliminar la categoría (CASCADE se encargará del resto)
-      // La base de datos eliminará automáticamente:
-      // - challenge_category_translations (ON DELETE CASCADE)
-      // - challenges (ON DELETE CASCADE)
-      // - challenge_translations (ON DELETE CASCADE desde challenges)
-      const { error: categoryError } = await supabase
-        .from('challenge_categories')
-        .delete()
-        .eq('id', categoryToDelete.id);
-
-      if (categoryError) {
-        console.error('Error deleting category:', categoryError);
-        showToast({ message: `Error al eliminar la categoría: ${categoryError.message}`, type: 'error' });
+      if (!result.success) {
+        showToast({ message: `Error al eliminar la categoría: ${result.error}`, type: 'error' });
         return;
       }
 
@@ -155,7 +139,7 @@ export default function CategoriesPage() {
       setDeleteModalOpen(false);
       setCategoryToDelete(null);
 
-      const deletedChallenges = challengeCount || 0;
+      const deletedChallenges = result.deletedChallenges || 0;
       const message = deletedChallenges > 0
         ? `Categoría eliminada exitosamente junto con ${deletedChallenges} ${deletedChallenges === 1 ? 'reto' : 'retos'}`
         : 'Categoría eliminada exitosamente';
@@ -231,6 +215,7 @@ export default function CategoriesPage() {
             is_premium: cat.is_premium,
             min_players: cat.min_players,
             max_players: cat.max_players,
+            sort_order: cat.sort_order,
             challenge_count: count || 0,
             translations,
           };
@@ -461,42 +446,26 @@ export default function CategoriesPage() {
       setUploadProgress({ current: 0, total: challengesToInsert.length, errors: [] });
       let successCount = 0;
 
+      // Importar Server Action
+      const { createChallengeBulk } = await import('@/actions/challenges');
+
       for (let i = 0; i < challengesToInsert.length; i++) {
         const { challengeData, translations } = challengesToInsert[i];
 
         try {
-          const { data: challenge, error: challengeError } = await supabase
-            .from('challenges')
-            .insert(challengeData)
-            .select('id')
-            .single();
-
-          if (challengeError) throw new Error(challengeError.message);
-          if (!challenge) throw new Error('No se pudo crear el reto');
-
-          // Preparar traducciones solo con los campos correctos
-          const translationsToInsert: any[] = [];
+          // Filtrar solo traducciones válidas
+          const validTranslations: Record<string, { content: string }> = {};
           Object.entries(translations).forEach(([langCode, trans]: [string, any]) => {
             if (trans && trans.content && validLangCodes.has(langCode)) {
-              translationsToInsert.push({
-                challenge_id: (challenge as { id: string }).id,
-                language_code: langCode,
-                content: trans.content,
-              });
+              validTranslations[langCode] = { content: trans.content };
             }
           });
 
-          if (translationsToInsert.length === 0) {
-            throw new Error('No hay traducciones válidas para insertar');
-          }
+          // Usar Server Action para crear el reto
+          const result = await createChallengeBulk(challengeData, validTranslations);
 
-          const { error: translationsError } = await supabase
-            .from('challenge_translations')
-            .insert(translationsToInsert);
-
-          if (translationsError) {
-            await supabase.from('challenges').delete().eq('id', (challenge as { id: string }).id);
-            throw new Error(translationsError.message);
+          if (!result.success) {
+            throw new Error(result.error);
           }
 
           successCount++;

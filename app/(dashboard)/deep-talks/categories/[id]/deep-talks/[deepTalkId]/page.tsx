@@ -46,7 +46,6 @@ export default function EditDeepTalkPage({ params }: PageProps) {
   const [isFetching, setIsFetching] = useState(true);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [originalSortOrder, setOriginalSortOrder] = useState<number>(0);
 
   // Idiomas seleccionados
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
@@ -109,14 +108,12 @@ export default function EditDeepTalkPage({ params }: PageProps) {
       }
 
       // Actualizar formData
-      const sortOrder = (deepTalk as any).sort_order || 0;
-      setOriginalSortOrder(sortOrder);
       setFormData({
         icon: (deepTalk as any).icon || "chatbubbles",
         gradient_colors: (deepTalk as any).gradient_colors || ["#8B5CF6", "#EC4899"],
         estimated_time: (deepTalk as any).estimated_time || "15-20 min",
         is_active: (deepTalk as any).is_active || false,
-        sort_order: sortOrder,
+        sort_order: (deepTalk as any).sort_order || 0,
       });
 
       // Actualizar traducciones
@@ -272,61 +269,15 @@ export default function EditDeepTalkPage({ params }: PageProps) {
     setIsLoading(true);
 
     try {
-      // 1. Si el sort_order cambió, recorrer los existentes
-      if (formData.sort_order !== originalSortOrder) {
-        // Obtener todos los deep_talks con sort_order >= al nuevo (excluyendo el actual)
-        const { data: existingDeepTalks } = await supabase
-          .from('deep_talks')
-          .select('id, sort_order')
-          .eq('deep_talk_category_id', categoryId)
-          .gte('sort_order', formData.sort_order)
-          .neq('id', deepTalkId)
-          .order('sort_order', { ascending: false });
+      const deepTalkData = {
+        icon: formData.icon || null,
+        gradient_colors: formData.gradient_colors,
+        estimated_time: formData.estimated_time ? parseInt(formData.estimated_time) : null,
+        is_active: formData.is_active,
+        sort_order: formData.sort_order,
+      };
 
-        // Actualizar cada uno incrementando su sort_order en 1
-        if (existingDeepTalks && existingDeepTalks.length > 0) {
-          for (const existing of existingDeepTalks) {
-            const newSortOrder = (existing as { id: string; sort_order: number }).sort_order + 1;
-            const existingId = (existing as { id: string; sort_order: number }).id;
-
-            await supabase
-              .from('deep_talks')
-              .update({ sort_order: newSortOrder } as any)
-              .eq('id', existingId);
-          }
-        }
-      }
-
-      // 2. Actualizar el Deep Talk
-      const { error: deepTalkError } = await (supabase
-        .from("deep_talks") as any)
-        .update({
-          deep_talk_category_id: categoryId,
-          icon: formData.icon || null,
-          gradient_colors: formData.gradient_colors,
-          estimated_time: formData.estimated_time || null,
-          is_active: formData.is_active,
-          sort_order: formData.sort_order,
-        })
-        .eq("id", deepTalkId);
-
-      if (deepTalkError) {
-        throw new Error(deepTalkError.message);
-      }
-
-      // 3. Eliminar traducciones existentes
-      const { error: deleteTranslationsError } = await supabase
-        .from("deep_talk_translations")
-        .delete()
-        .eq("deep_talk_id", deepTalkId);
-
-      if (deleteTranslationsError) {
-        throw new Error(deleteTranslationsError.message);
-      }
-
-      // 4. Insertar nuevas traducciones
       const translationsToInsert = selectedLanguages.map((lang) => ({
-        deep_talk_id: deepTalkId,
         language_code: lang,
         title: translations[lang].title,
         subtitle: translations[lang].subtitle || null,
@@ -334,12 +285,11 @@ export default function EditDeepTalkPage({ params }: PageProps) {
         intensity: translations[lang].intensity || null,
       }));
 
-      const { error: translationsError } = await supabase
-        .from("deep_talk_translations")
-        .insert(translationsToInsert as any);
+      const { updateDeepTalk } = await import('@/actions/deepTalks');
+      const result = await updateDeepTalk(deepTalkId, deepTalkData, translationsToInsert);
 
-      if (translationsError) {
-        throw new Error(translationsError.message);
+      if (!result.success) {
+        throw new Error(result.error);
       }
 
       // Éxito - mostrar modal de éxito

@@ -53,12 +53,12 @@ export default function NewDeepTalkPage({ params }: PageProps) {
     const loadCategory = async () => {
       const { data, error } = await supabase
         .from("deep_talk_categories")
-        .select("is_premium")
+        .select("*")
         .eq("id", categoryId)
         .single();
 
       if (!error && data) {
-        setIsCategoryPremium(data.is_premium);
+        setIsCategoryPremium((data as any).is_premium || false);
       }
     };
 
@@ -336,54 +336,18 @@ export default function NewDeepTalkPage({ params }: PageProps) {
       //   return;
       // }
 
-      // 1. Recorrer los sort_order existentes dentro de este filtro
-      const { data: existingDeepTalks } = await supabase
-        .from('deep_talks')
-        .select('id, sort_order')
-        .eq('deep_talk_category_id', categoryId)
-        .gte('sort_order', formData.sort_order)
-        .order('sort_order', { ascending: false });
+      // Preparar datos del deep talk
+      const deepTalkData = {
+        deep_talk_category_id: categoryId,
+        icon: formData.icon || null,
+        gradient_colors: formData.gradient_colors,
+        estimated_time: formData.estimated_time ? parseInt(formData.estimated_time) : null,
+        is_active: formData.is_active,
+        sort_order: formData.sort_order,
+      };
 
-      // Actualizar cada uno incrementando su sort_order en 1
-      if (existingDeepTalks && existingDeepTalks.length > 0) {
-        for (const existing of existingDeepTalks) {
-          const newSortOrder = (existing as { id: string; sort_order: number }).sort_order + 1;
-          const existingId = (existing as { id: string; sort_order: number }).id;
-
-          await supabase
-            .from('deep_talks')
-            .update({ sort_order: newSortOrder } as any)
-            .eq('id', existingId);
-        }
-      }
-
-      // 2. Insertar deep_talk
-      const { data: deepTalk, error: deepTalkError } = await supabase
-        .from("deep_talks")
-        .insert({
-          deep_talk_category_id: categoryId,
-          icon: formData.icon || null,
-          gradient_colors: formData.gradient_colors,
-          estimated_time: formData.estimated_time || null,
-          is_active: formData.is_active,
-          sort_order: formData.sort_order,
-        })
-        .select("id")
-        .single();
-
-      if (deepTalkError) {
-        throw new Error(deepTalkError.message);
-      }
-
-      // Actualizar categoría (is_premium)
-      await supabase
-        .from("deep_talk_categories")
-        .update({ is_premium: isCategoryPremium })
-        .eq("id", categoryId);
-
-      // 3. Insertar traducciones
+      // Preparar traducciones
       const translationsToInsert = selectedLanguages.map((lang) => ({
-        deep_talk_id: deepTalk.id,
         language_code: lang,
         title: translations[lang].title,
         subtitle: translations[lang].subtitle || null,
@@ -391,44 +355,69 @@ export default function NewDeepTalkPage({ params }: PageProps) {
         intensity: translations[lang].intensity || null,
       }));
 
-      const { error: translationsError } = await supabase
-        .from("deep_talk_translations")
-        .insert(translationsToInsert);
+      // Usar Server Action para crear el deep talk
+      const { createDeepTalk } = await import('@/actions/deepTalks');
+      const result = await createDeepTalk(deepTalkData, translationsToInsert);
 
-      if (translationsError) {
-        // Si falla, eliminar el deep talk
-        await supabase.from("deep_talks").delete().eq("id", deepTalk.id);
-        throw new Error(translationsError.message);
+      if (!result.success || !result.data) {
+        throw new Error(result.error || 'Error al crear deep talk');
       }
 
-      // 4. Insertar preguntas (solo si hay preguntas)
+      const deepTalkId = result.data.id;
+
+      // Insertar preguntas (solo si hay preguntas) usando Server Action
       const questionsToInsert = selectedLanguages.flatMap((lang) =>
         (questions[lang] || []).map((q) => ({
-          deep_talk_id: deepTalk.id,
-          language_code: lang,
-          question: q.question,
+          deep_talk_id: deepTalkId,
           sort_order: q.sort_order,
           is_active: q.is_active,
-          icon: q.icon || null,
+          translations: {
+            [lang]: {
+              language_code: lang,
+              question: q.question,
+            }
+          }
         }))
       );
 
-      // Solo insertar si hay preguntas
-      if (questionsToInsert.length > 0) {
-        const { error: questionsError } = await supabase
-          .from("deep_talk_questions")
-          .insert(questionsToInsert);
+      // Agrupar preguntas por sort_order para insertar cada pregunta una sola vez con todas sus traducciones
+      const questionsMap = new Map<string, { deep_talk_id: string; sort_order: number; is_active: boolean; translations: Record<string, { language_code: string; question: string }> }>();
+      questionsToInsert.forEach(q => {
+        const key = `${q.deep_talk_id}_${q.sort_order}`;
+        if (!questionsMap.has(key)) {
+          questionsMap.set(key, {
+            deep_talk_id: q.deep_talk_id,
+            sort_order: q.sort_order,
+            is_active: q.is_active,
+            translations: {}
+          });
+        }
+        Object.assign(questionsMap.get(key)!.translations, q.translations);
+      });
 
-        if (questionsError) {
-          // Si falla, eliminar todo
-          await supabase.from("deep_talks").delete().eq("id", deepTalk.id);
-          throw new Error(questionsError.message);
+      const { createDeepTalkQuestion } = await import('@/actions/deepTalks');
+      for (const questionData of questionsMap.values()) {
+        const questionTranslations = Object.values(questionData.translations).map(t => ({
+          language_code: t.language_code,
+          question: t.question,
+        }));
+        const questionResult = await createDeepTalkQuestion(
+          {
+            deep_talk_id: questionData.deep_talk_id,
+            sort_order: questionData.sort_order,
+            is_active: questionData.is_active,
+          },
+          questionTranslations
+        );
+
+        if (!questionResult.success) {
+          console.error('Error creating question:', questionResult.error);
         }
       }
 
       // Éxito - redirigir
       setToast({
-        message: `¡Plática creada exitosamente! ID: ${deepTalk.id}`,
+        message: `¡Plática creada exitosamente! ID: ${deepTalkId}`,
         type: "success",
       });
       setTimeout(() => {

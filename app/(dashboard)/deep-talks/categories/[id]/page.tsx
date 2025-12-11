@@ -40,7 +40,6 @@ export default function EditDeepTalkCategoryPage() {
   const [isFetching, setIsFetching] = useState(true);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
-  const [originalSortOrder, setOriginalSortOrder] = useState<number>(0);
 
   // Idiomas seleccionados
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
@@ -99,25 +98,25 @@ export default function EditDeepTalkCategoryPage() {
       }
 
       // Actualizar formData
-      const sortOrder = category.sort_order || 0;
-      setOriginalSortOrder(sortOrder);
+      const categoryData = category as any;
+      const sortOrder = categoryData.sort_order || 0;
       setFormData({
         game_mode_id:
-          category.game_mode_id || "33333333-3333-3333-3333-333333333333",
-        label: category.label || "",
-        icon: category.icon || "chatbubbles",
-        color: category.color || "#8B5CF6",
-        route: category.route || "",
+          categoryData.game_mode_id || "33333333-3333-3333-3333-333333333333",
+        label: categoryData.label || "",
+        icon: categoryData.icon || "chatbubbles",
+        color: categoryData.color || "#8B5CF6",
+        route: categoryData.route || "",
         sort_order: sortOrder,
-        is_premium: category.is_premium || false,
-        is_active: category.is_active || false,
+        is_premium: categoryData.is_premium || false,
+        is_active: categoryData.is_active || false,
       });
 
       // Actualizar traducciones
       const translationsData: Record<string, DeepTalkCategoryTranslation> = {};
       const languages: string[] = [];
 
-      category.deep_talk_categories_translations.forEach((translation: any) => {
+      categoryData.deep_talk_categories_translations.forEach((translation: any) => {
         translationsData[translation.language_code] = {
           language_code: translation.language_code,
           name: translation.name,
@@ -216,75 +215,27 @@ export default function EditDeepTalkCategoryPage() {
     setIsLoading(true);
 
     try {
-      // 1. Si el sort_order cambió, recorrer los existentes
-      if (formData.sort_order !== originalSortOrder) {
-        // Obtener todos los filtros con sort_order >= al nuevo (excluyendo el actual)
-        const { data: existingFilters } = await supabase
-          .from("deep_talk_categories")
-          .select("id, sort_order")
-          .eq("game_mode_id", formData.game_mode_id)
-          .gte("sort_order", formData.sort_order)
-          .neq("id", categoryId)
-          .order("sort_order", { ascending: false });
+      const categoryData = {
+        game_mode_id: formData.game_mode_id,
+        label: formData.label,
+        icon: formData.icon,
+        color: formData.color,
+        route: formData.route,
+        sort_order: formData.sort_order,
+        is_premium: formData.is_premium,
+        is_active: formData.is_active,
+      };
 
-        // Actualizar cada uno incrementando su sort_order en 1
-        if (existingFilters && existingFilters.length > 0) {
-          for (const existing of existingFilters) {
-            const newSortOrder =
-              (existing as { id: string; sort_order: number }).sort_order + 1;
-            const existingId = (existing as { id: string; sort_order: number })
-              .id;
-
-            await supabase
-              .from("deep_talk_categories")
-              .update({ sort_order: newSortOrder } as any)
-              .eq("id", existingId);
-          }
-        }
-      }
-
-      // 2. Actualizar la categoría
-      const { error: categoryError } = await supabase
-        .from("deep_talk_categories")
-        .update({
-          game_mode_id: formData.game_mode_id,
-          label: formData.label || null,
-          icon: formData.icon || null,
-          color: formData.color || null,
-          route: formData.route || null,
-          sort_order: formData.sort_order,
-          is_premium: formData.is_premium,
-          is_active: formData.is_active,
-        })
-        .eq("id", categoryId);
-
-      if (categoryError) {
-        throw new Error(categoryError.message);
-      }
-
-      // 3. Eliminar traducciones existentes
-      const { error: deleteError } = await supabase
-        .from("deep_talk_categories_translations")
-        .delete()
-        .eq("deep_talk_category_id", categoryId);
-
-      if (deleteError) {
-        throw new Error(deleteError.message);
-      }
-
-      // 4. Insertar nuevas traducciones
       const translationsToInsert = selectedLanguages.map((lang) => ({
-        deep_talk_category_id: categoryId,
         language_code: lang,
         name: translations[lang].name,
       }));
 
-      const { error: translationsError } = await supabase
-        .from("deep_talk_categories_translations")
-        .insert(translationsToInsert);
+      const { updateDeepTalkCategory } = await import('@/actions/deepTalks');
+      const result = await updateDeepTalkCategory(categoryId, categoryData, translationsToInsert);
 
-      if (translationsError) {
-        throw new Error(translationsError.message);
+      if (!result.success) {
+        throw new Error(result.error);
       }
 
       // Éxito - mostrar modal de éxito

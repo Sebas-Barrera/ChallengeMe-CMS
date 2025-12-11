@@ -32,24 +32,6 @@ export const SUPPORTED_LANGUAGES: Language[] = [
     isDefault: false,
     sortOrder: 1,
   },
-  {
-    code: 'fr',
-    name: 'French',
-    nativeName: 'Français',
-    flag: '🇫🇷',
-    isActive: true,
-    isDefault: false,
-    sortOrder: 2,
-  },
-  {
-    code: 'pt',
-    name: 'Portuguese',
-    nativeName: 'Português',
-    flag: '🇧🇷',
-    isActive: true,
-    isDefault: false,
-    sortOrder: 3,
-  },
 ];
 
 export const DEFAULT_LANGUAGE = SUPPORTED_LANGUAGES.find(lang => lang.isDefault) || SUPPORTED_LANGUAGES[0];
