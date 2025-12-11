@@ -1,0 +1,3 @@
+label,sort_order,is_premium,is_active,name_es,name_en,icon,color,route
+relationships,1,false,true,Relaciones,Relationships,heart,#EC4899,/deep-talks/relationships
+personal_growth,2,false,true,Crecimiento Personal,Personal Growth,rocket,#8B5CF6,/deep-talks/personal-growth

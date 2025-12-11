@@ -5,6 +5,7 @@ import Image from 'next/image';
 import { useState, useEffect } from 'react';
 import { useAuth } from '@/contexts/AuthContext';
 import * as IoIcons from 'react-icons/io5';
+import Toast from '@/components/ui/Toast';
 
 interface Filter {
   id: string;
@@ -102,6 +103,9 @@ export default function DeepTalkCategoriesPage() {
   // Estado para búsqueda de categorías
   const [categorySearchTerm, setCategorySearchTerm] = useState('');
 
+  // Estado para Toast
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' | 'warning' } | null>(null);
+
   useEffect(() => {
     fetchFilters();
 
@@ -114,31 +118,29 @@ export default function DeepTalkCategoriesPage() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
+  // Bloquear scroll cuando el modal está abierto
+  useEffect(() => {
+    if (showUploadModal) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [showUploadModal]);
+
   // Función para guardar la posición de scroll antes de navegar
   const saveScrollPosition = () => {
     sessionStorage.setItem('deepTalkCategoriesScrollPosition', window.scrollY.toString());
-  };
-
-  const handleDownloadExampleFilters = () => {
-    const exampleCSV = `label,icon,color,route,sort_order,is_premium,is_active,name_es,name_en,name_pt,name_fr,name_it
-relaciones,heart,#EC4899,/deep-talks/relaciones,1,false,true,Relaciones,Relationships,Relacionamentos,Relations,Relazioni
-crecimiento-personal,rocket,#8B5CF6,/deep-talks/crecimiento,2,false,true,Crecimiento Personal,Personal Growth,Crescimento Pessoal,Croissance Personnelle,Crescita Personale
-diversion,sparkles,#F59E0B,/deep-talks/diversion,3,true,true,Diversión,Fun,Diversão,Amusement,Divertimento`;
-
-    const blob = new Blob([exampleCSV], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'ejemplo_filtros.csv';
-    a.click();
-    window.URL.revokeObjectURL(url);
   };
 
   const handleUploadFilters = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!csvFile) {
-      alert('Por favor selecciona un archivo CSV');
+      setToast({ message: 'Por favor selecciona un archivo CSV', type: 'warning' });
       return;
     }
 
@@ -150,18 +152,18 @@ diversion,sparkles,#F59E0B,/deep-talks/diversion,3,true,true,Diversión,Fun,Dive
       const lines = text.split('\n').filter(line => line.trim());
 
       if (lines.length < 2) {
-        alert('El archivo CSV está vacío o no tiene datos');
+        setToast({ message: 'El archivo CSV está vacío o no tiene datos', type: 'error' });
         setIsUploading(false);
         return;
       }
 
       // Parsear header
       const headers = lines[0].split(',').map(h => h.trim());
-      const requiredHeaders = ['sort_order', 'is_active', 'is_premium', 'name_es', 'name_en'];
+      const requiredHeaders = ['label', 'sort_order', 'is_active', 'is_premium', 'name_es', 'name_en'];
       const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
 
       if (missingHeaders.length > 0) {
-        alert(`Faltan columnas requeridas en el CSV: ${missingHeaders.join(', ')}`);
+        setToast({ message: `Faltan columnas requeridas en el CSV: ${missingHeaders.join(', ')}`, type: 'error' });
         setIsUploading(false);
         return;
       }
@@ -182,22 +184,19 @@ diversion,sparkles,#F59E0B,/deep-talks/diversion,3,true,true,Diversión,Fun,Dive
         });
 
         // Validar datos requeridos
-        if (!row.name_es || !row.name_en) {
-          errors.push(`Fila ${i + 1}: Falta nombre en español o inglés`);
+        if (!row.label || !row.name_es || !row.name_en) {
+          errors.push(`Fila ${i + 1}: Falta label, nombre en español o inglés`);
           continue;
         }
 
-        // Usar label del CSV o generar automáticamente desde el nombre en español
-        const label = row.label || row.name_es
-          .toLowerCase()
-          .normalize('NFD')
-          .replace(/[\u0300-\u036f]/g, '') // Eliminar acentos
-          .replace(/[^a-z0-9\s]/g, '') // Eliminar caracteres especiales
-          .trim()
-          .replace(/\s+/g, '_'); // Reemplazar espacios con guiones bajos
+        // Validar que label esté en formato correcto (minúsculas, guiones bajos)
+        if (!/^[a-z0-9_]+$/.test(row.label)) {
+          errors.push(`Fila ${i + 1}: El label "${row.label}" debe estar en minúsculas y solo contener letras, números y guiones bajos`);
+          continue;
+        }
 
         filters.push({
-          label: label,
+          label: row.label,
           icon: row.icon || null,
           color: row.color || null,
           route: row.route || null,
@@ -207,15 +206,12 @@ diversion,sparkles,#F59E0B,/deep-talks/diversion,3,true,true,Diversión,Fun,Dive
           translations: {
             es: { name: row.name_es },
             en: { name: row.name_en },
-            pt: { name: row.name_pt || '' },
-            fr: { name: row.name_fr || '' },
-            it: { name: row.name_it || '' },
           }
         });
       }
 
       if (filters.length === 0) {
-        alert('No se encontraron filtros válidos en el CSV');
+        setToast({ message: 'No se encontraron filtros válidos en el CSV', type: 'error' });
         setIsUploading(false);
         return;
       }
@@ -231,7 +227,29 @@ diversion,sparkles,#F59E0B,/deep-talks/diversion,3,true,true,Diversión,Fun,Dive
         setUploadProgress(prev => ({ ...prev, current: i + 1 }));
 
         try {
-          // 1. Insertar el filtro
+          // 1. Recorrer los sort_order existentes si es necesario
+          // Obtener todos los filtros con sort_order >= al nuevo
+          const { data: existingFilters } = await supabase
+            .from('deep_talk_categories')
+            .select('id, sort_order')
+            .eq('game_mode_id', '33333333-3333-3333-3333-333333333333')
+            .gte('sort_order', filter.sort_order)
+            .order('sort_order', { ascending: false });
+
+          // Actualizar cada uno incrementando su sort_order en 1
+          if (existingFilters && existingFilters.length > 0) {
+            for (const existing of existingFilters) {
+              const newSortOrder = (existing as { id: string; sort_order: number }).sort_order + 1;
+              const existingId = (existing as { id: string; sort_order: number }).id;
+
+              await supabase
+                .from('deep_talk_categories')
+                .update({ sort_order: newSortOrder } as any)
+                .eq('id', existingId);
+            }
+          }
+
+          // 2. Insertar el filtro
           const { data: filterData, error: filterError } = await supabase
             .from('deep_talk_categories')
             .insert({
@@ -286,38 +304,22 @@ diversion,sparkles,#F59E0B,/deep-talks/diversion,3,true,true,Diversión,Fun,Dive
         // Refrescar la lista de filtros
         await fetchFilters();
       } else {
-        alert('No se pudo insertar ningún filtro. Revisa los errores.');
+        setToast({ message: 'No se pudo insertar ningún filtro. Revisa los errores.', type: 'error' });
       }
 
     } catch (error: any) {
       console.error('Error:', error);
-      alert('Error al procesar el archivo: ' + error.message);
+      setToast({ message: 'Error al procesar el archivo: ' + error.message, type: 'error' });
     } finally {
       setIsUploading(false);
     }
-  };
-
-  const handleDownloadExampleCategories = () => {
-    const exampleCSV = `filter_label,icon,gradient_colors,estimated_time,sort_order,is_active,is_premium,title_es,subtitle_es,description_es,intensity_es,title_en,subtitle_en,description_en,intensity_en,title_pt,subtitle_pt,description_pt,intensity_pt,title_fr,subtitle_fr,description_fr,intensity_fr
-personal_growth,heart,#FF6B9D|#FF8FAB,15 min,1,true,false,Amor y Pareja,Conversaciones sobre el amor,Explora temas profundos sobre relaciones románticas y conexiones emocionales,MEDIUM,Love and Partnership,Conversations about love,Explore deep topics about romantic relationships and emotional connections,MEDIUM,Amor e Parceria,Conversas sobre amor,Explore tópicos profundos sobre relacionamentos românticos e conexões emocionais,MEDIUM,Amour et Partenariat,Conversations sur l'amour,Explorez des sujets profonds sur les relations amoureuses et les connexions émotionnelles,MEDIUM
-personal_growth,heart-circle,#EC4899|#F472B6,20 min,2,true,false,Amistad Profunda,Conversaciones sobre amistad,Fortalece tus lazos de amistad con preguntas significativas,HIGH,Deep Friendship,Conversations about friendship,Strengthen your friendship bonds with meaningful questions,HIGH,Amizade Profunda,Conversas sobre amizade,Fortaleça seus laços de amizade com perguntas significativas,HIGH,Amitié Profonde,Conversations sur l'amitié,Renforcez vos liens d'amitié avec des questions significatives,HIGH
-relationships,rocket,#4CAF50|#66BB6A,25 min,1,true,true,Metas y Sueños,Conversaciones sobre aspiraciones,Descubre qué motiva a las personas y cuáles son sus objetivos de vida,HIGH,Goals and Dreams,Conversations about aspirations,Discover what motivates people and what their life goals are,HIGH,Metas e Sonhos,Conversas sobre aspirações,Descubra o que motiva as pessoas e quais são seus objetivos de vida,HIGH,Objectifs et Rêves,Conversations sur les aspirations,Découvrez ce qui motive les gens et quels sont leurs objectifs de vie,HIGH
-relationships,bulb,#8B5CF6|#7C3AED,30 min,2,true,true,Autoconocimiento,Reflexión personal profunda,Conoce más sobre ti mismo y tus valores personales,MEDIUM,Self-Discovery,Deep personal reflection,Learn more about yourself and your personal values,MEDIUM,Autoconhecimento,Reflexão pessoal profunda,Conheça mais sobre você mesmo e seus valores pessoais,MEDIUM,Découverte de Soi,Réflexion personnelle profonde,Apprenez-en plus sur vous-même et vos valeurs personnelles,MEDIUM`;
-
-    const blob = new Blob([exampleCSV], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'ejemplo_categorias.csv';
-    a.click();
-    window.URL.revokeObjectURL(url);
   };
 
   const handleUploadCategories = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!csvFile) {
-      alert('Por favor selecciona un archivo CSV');
+      setToast({ message: 'Por favor selecciona un archivo CSV', type: 'warning' });
       return;
     }
 
@@ -329,7 +331,7 @@ relationships,bulb,#8B5CF6|#7C3AED,30 min,2,true,true,Autoconocimiento,Reflexió
       const lines = text.split('\n').filter(line => line.trim());
 
       if (lines.length < 2) {
-        alert('El archivo CSV está vacío o no tiene datos');
+        setToast({ message: 'El archivo CSV está vacío o no tiene datos', type: 'error' });
         setIsUploading(false);
         return;
       }
@@ -340,7 +342,7 @@ relationships,bulb,#8B5CF6|#7C3AED,30 min,2,true,true,Autoconocimiento,Reflexió
       const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
 
       if (missingHeaders.length > 0) {
-        alert(`Faltan columnas requeridas en el CSV: ${missingHeaders.join(', ')}`);
+        setToast({ message: `Faltan columnas requeridas en el CSV: ${missingHeaders.join(', ')}`, type: 'error' });
         setIsUploading(false);
         return;
       }
@@ -418,7 +420,7 @@ relationships,bulb,#8B5CF6|#7C3AED,30 min,2,true,true,Autoconocimiento,Reflexió
       }
 
       if (categories.length === 0) {
-        alert('No se encontraron categorías válidas en el CSV');
+        setToast({ message: 'No se encontraron categorías válidas en el CSV', type: 'error' });
         setIsUploading(false);
         return;
       }
@@ -446,11 +448,34 @@ relationships,bulb,#8B5CF6|#7C3AED,30 min,2,true,true,Autoconocimiento,Reflexió
             continue;
           }
 
-          // 2. Insertar la categoría (deep_talk)
+          const filterId = (filterData as any).id;
+
+          // 2. Recorrer los sort_order existentes dentro de este filtro
+          const { data: existingDeepTalks } = await supabase
+            .from('deep_talks')
+            .select('id, sort_order')
+            .eq('deep_talk_category_id', filterId)
+            .gte('sort_order', category.sort_order)
+            .order('sort_order', { ascending: false });
+
+          // Actualizar cada uno incrementando su sort_order en 1
+          if (existingDeepTalks && existingDeepTalks.length > 0) {
+            for (const existing of existingDeepTalks) {
+              const newSortOrder = (existing as { id: string; sort_order: number }).sort_order + 1;
+              const existingId = (existing as { id: string; sort_order: number }).id;
+
+              await supabase
+                .from('deep_talks')
+                .update({ sort_order: newSortOrder } as any)
+                .eq('id', existingId);
+            }
+          }
+
+          // 3. Insertar la categoría (deep_talk)
           const { data: deepTalkData, error: deepTalkError } = await supabase
             .from('deep_talks')
             .insert({
-              deep_talk_category_id: (filterData as any).id,
+              deep_talk_category_id: filterId,
               icon: category.icon,
               gradient_colors: category.gradient_colors,
               estimated_time: category.estimated_time,
@@ -502,12 +527,12 @@ relationships,bulb,#8B5CF6|#7C3AED,30 min,2,true,true,Autoconocimiento,Reflexió
         // Refrescar la lista de filtros
         await fetchFilters();
       } else {
-        alert('No se pudo insertar ninguna categoría. Revisa los errores.');
+        setToast({ message: 'No se pudo insertar ninguna categoría. Revisa los errores.', type: 'error' });
       }
 
     } catch (error: any) {
       console.error('Error:', error);
-      alert('Error al procesar el archivo: ' + error.message);
+      setToast({ message: 'Error al procesar el archivo: ' + error.message, type: 'error' });
     } finally {
       setIsUploading(false);
     }
@@ -544,7 +569,7 @@ relationships,bulb,#8B5CF6|#7C3AED,30 min,2,true,true,Autoconocimiento,Reflexió
       setShowSuccessUploadModal(true);
     } catch (error: any) {
       console.error('Error al eliminar filtro:', error);
-      alert('Error al eliminar el filtro: ' + error.message);
+      setToast({ message: 'Error al eliminar el filtro: ' + error.message, type: 'error' });
     } finally {
       setIsDeleting(false);
     }
@@ -581,37 +606,18 @@ relationships,bulb,#8B5CF6|#7C3AED,30 min,2,true,true,Autoconocimiento,Reflexió
       setShowSuccessUploadModal(true);
     } catch (error: any) {
       console.error('Error al eliminar categoría:', error);
-      alert('Error al eliminar la categoría: ' + error.message);
+      setToast({ message: 'Error al eliminar la categoría: ' + error.message, type: 'error' });
     } finally {
       setIsDeletingCategory(false);
     }
   };
 
-  const handleDownloadExampleQuestions = () => {
-    const exampleCSV = `category_title_es,icon,sort_order,is_active,question_es,question_en,question_pt,question_fr
-Amor y Pareja,heart,1,true,¿Qué es lo que más valoras en una relación de pareja?,What do you value most in a romantic relationship?,O que você mais valoriza em um relacionamento romântico?,Qu'est-ce que tu valorises le plus dans une relation amoureuse?
-Amor y Pareja,gift,2,true,¿Cómo demuestras amor a las personas importantes en tu vida?,How do you show love to the important people in your life?,Como você demonstra amor às pessoas importantes da sua vida?,Comment montres-tu ton amour aux personnes importantes de ta vie?
-Amistad Profunda,people,1,true,¿Qué cualidad valoras más en tus amigos?,What quality do you value most in your friends?,Qual qualidade você mais valoriza em seus amigos?,Quelle qualité valorises-tu le plus chez tes amis?
-Amistad Profunda,heart-circle,2,true,¿Cómo fortaleces tus amistades más importantes?,How do you strengthen your most important friendships?,Como você fortalece suas amizades mais importantes?,Comment renforces-tu tes amitiés les plus importantes?
-Metas y Sueños,star,1,true,¿Cuál es tu mayor sueño y qué estás haciendo para alcanzarlo?,What is your biggest dream and what are you doing to achieve it?,Qual é o seu maior sonho e o que você está fazendo para alcançá-lo?,Quel est ton plus grand rêve et que fais-tu pour le réaliser?
-Metas y Sueños,flag,2,true,¿Qué meta te gustaría lograr en los próximos 5 años?,What goal would you like to achieve in the next 5 years?,Qual meta você gostaria de alcançar nos próximos 5 anos?,Quel objectif aimerais-tu atteindre dans les 5 prochaines années?
-Autoconocimiento,happy,1,true,¿Qué es lo que más te gusta de ti mismo?,What do you like most about yourself?,O que você mais gosta em si mesmo?,Qu'est-ce que tu aimes le plus chez toi?
-Autoconocimiento,compass,2,true,¿Cuáles son los valores que guían tus decisiones más importantes?,What are the values that guide your most important decisions?,Quais são os valores que guiam suas decisões mais importantes?,Quelles sont les valeurs qui guident tes décisions les plus importantes?`;
-
-    const blob = new Blob([exampleCSV], { type: 'text/csv' });
-    const url = window.URL.createObjectURL(blob);
-    const a = document.createElement('a');
-    a.href = url;
-    a.download = 'ejemplo_preguntas.csv';
-    a.click();
-    window.URL.revokeObjectURL(url);
-  };
 
   const handleUploadQuestions = async (e: React.FormEvent) => {
     e.preventDefault();
 
     if (!csvFile) {
-      alert('Por favor selecciona un archivo CSV');
+      setToast({ message: 'Por favor selecciona un archivo CSV', type: 'warning' });
       return;
     }
 
@@ -623,7 +629,7 @@ Autoconocimiento,compass,2,true,¿Cuáles son los valores que guían tus decisio
       const lines = text.split('\n').filter(line => line.trim());
 
       if (lines.length < 2) {
-        alert('El archivo CSV está vacío o no tiene datos');
+        setToast({ message: 'El archivo CSV está vacío o no tiene datos', type: 'error' });
         setIsUploading(false);
         return;
       }
@@ -634,7 +640,7 @@ Autoconocimiento,compass,2,true,¿Cuáles son los valores que guían tus decisio
       const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
 
       if (missingHeaders.length > 0) {
-        alert(`Faltan columnas requeridas en el CSV: ${missingHeaders.join(', ')}`);
+        setToast({ message: `Faltan columnas requeridas en el CSV: ${missingHeaders.join(', ')}`, type: 'error' });
         setIsUploading(false);
         return;
       }
@@ -680,7 +686,7 @@ Autoconocimiento,compass,2,true,¿Cuáles son los valores que guían tus decisio
       }
 
       if (questions.length === 0) {
-        alert('No se encontraron preguntas válidas en el CSV');
+        setToast({ message: 'No se encontraron preguntas válidas en el CSV', type: 'error' });
         setIsUploading(false);
         return;
       }
@@ -709,11 +715,34 @@ Autoconocimiento,compass,2,true,¿Cuáles son los valores que guían tus decisio
             continue;
           }
 
-          // 2. Insertar las preguntas en todos los idiomas
+          const deepTalkId = (deepTalkData as any).deep_talk_id;
+
+          // 2. Recorrer los sort_order existentes dentro de este deep_talk
+          const { data: existingQuestions } = await supabase
+            .from('deep_talk_questions')
+            .select('id, sort_order')
+            .eq('deep_talk_id', deepTalkId)
+            .gte('sort_order', question.sort_order)
+            .order('sort_order', { ascending: false });
+
+          // Actualizar cada uno incrementando su sort_order en 1
+          if (existingQuestions && existingQuestions.length > 0) {
+            for (const existing of existingQuestions) {
+              const newSortOrder = (existing as { id: string; sort_order: number }).sort_order + 1;
+              const existingId = (existing as { id: string; sort_order: number }).id;
+
+              await supabase
+                .from('deep_talk_questions')
+                .update({ sort_order: newSortOrder } as any)
+                .eq('id', existingId);
+            }
+          }
+
+          // 3. Insertar las preguntas en todos los idiomas
           const questionsToInsert = Object.entries(question.translations)
             .filter(([_, questionText]) => questionText.trim() !== '')
             .map(([lang, questionText]) => ({
-              deep_talk_id: (deepTalkData as any).deep_talk_id,
+              deep_talk_id: deepTalkId,
               language_code: lang,
               question: questionText,
               icon: question.icon,
@@ -744,12 +773,12 @@ Autoconocimiento,compass,2,true,¿Cuáles son los valores que guían tus decisio
         // Refrescar la lista (opcional, las preguntas no se muestran en esta vista)
         await fetchFilters();
       } else {
-        alert('No se pudo insertar ninguna pregunta. Revisa los errores.');
+        setToast({ message: 'No se pudo insertar ninguna pregunta. Revisa los errores.', type: 'error' });
       }
 
     } catch (error: any) {
       console.error('Error:', error);
-      alert('Error al procesar el archivo: ' + error.message);
+      setToast({ message: `Error al procesar el archivo: ${error.message}`, type: 'error' });
     } finally {
       setIsUploading(false);
     }
@@ -793,7 +822,6 @@ Autoconocimiento,compass,2,true,¿Cuáles son los valores que guían tus decisio
           gradient_colors,
           estimated_time,
           is_active,
-          is_premium,
           sort_order,
           deep_talk_translations (
             language_code,
@@ -806,6 +834,7 @@ Autoconocimiento,compass,2,true,¿Cuáles son los valores que guían tus decisio
             id,
             label,
             color,
+            is_premium,
             deep_talk_categories_translations (
               language_code,
               name
@@ -825,7 +854,7 @@ Autoconocimiento,compass,2,true,¿Cuáles son los valores que guían tus decisio
           gradient_colors: dt.gradient_colors,
           estimated_time: dt.estimated_time,
           is_active: dt.is_active,
-          is_premium: dt.is_premium || false,
+          is_premium: dt.deep_talk_categories?.is_premium ?? false,
           sort_order: dt.sort_order,
           deep_talk_translations: dt.deep_talk_translations || [],
           category: dt.deep_talk_categories,
@@ -872,39 +901,76 @@ Autoconocimiento,compass,2,true,¿Cuáles son los valores que guían tus decisio
   };
 
   return (
-    <div className="min-h-screen bg-bg-primary relative overflow-hidden">
+    <div className="min-h-screen bg-[#1A1A1A] relative overflow-hidden">
       {/* Formas decorativas de fondo */}
-      <div className="absolute top-0 right-0 w-96 h-96 bg-brand-purple/5 rounded-full blur-3xl pointer-events-none"></div>
-      <div className="absolute bottom-0 left-0 w-96 h-96 bg-brand-pink/5 rounded-full blur-3xl pointer-events-none"></div>
+      <div className="absolute top-0 left-0 w-full pointer-events-none opacity-15">
+        <Image
+          src="/resources/top-shapes.png"
+          alt=""
+          width={1920}
+          height={300}
+          className="w-full h-auto"
+          priority
+        />
+      </div>
+      <div className="absolute bottom-0 left-0 w-full pointer-events-none opacity-15">
+        <Image
+          src="/resources/bottom-shapes.png"
+          alt=""
+          width={1920}
+          height={300}
+          className="w-full h-auto"
+          priority
+        />
+      </div>
 
       <div className="relative z-10">
         {/* Header */}
-        <header className="bg-bg-secondary/80 backdrop-blur-sm border-b border-border sticky top-0 z-50">
-          <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-            <div className="flex items-center justify-between h-16">
+        <header className="bg-[#2A2A2A]/80 backdrop-blur-sm border-b border-[#333333] sticky top-0 z-50">
+          <div className="max-w-7xl mx-auto px-6 lg:px-8">
+            <div className="flex items-center justify-between h-20">
               <div className="flex items-center gap-4">
                 <Link href="/" className="flex items-center hover:opacity-80 transition-opacity">
-                  <Image
-                    src="/logos/ChallengeMe-05.png"
-                    alt="ChallengeMe"
-                    width={40}
-                    height={40}
-                    className="object-contain"
-                  />
+                  <div className="relative w-14 h-14 flex items-center justify-center">
+                    <Image
+                      src="/logos/ChallengeMe-05.png"
+                      alt="ChallengeMe"
+                      width={56}
+                      height={56}
+                      className="object-contain"
+                    />
+                  </div>
                 </Link>
-                <div className="h-8 w-px bg-border"></div>
-                <div>
-                  <h1 className="text-lg font-bold text-text-primary">
-                    Filtros de Pláticas Profundas
-                  </h1>
-                  <p className="text-xs text-text-secondary">
-                    Gestiona los filtros de Deep Talks
-                  </p>
+                <div className="h-10 w-px bg-[#333333]"></div>
+                <div className="flex items-center gap-3">
+                  <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#7B46F8]/20 to-[#7B46F8]/5 border border-[#7B46F8]/30 flex items-center justify-center">
+                    <svg
+                      className="w-6 h-6 text-[#7B46F8]"
+                      fill="none"
+                      stroke="currentColor"
+                      viewBox="0 0 24 24"
+                    >
+                      <path
+                        strokeLinecap="round"
+                        strokeLinejoin="round"
+                        strokeWidth={2}
+                        d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                      />
+                    </svg>
+                  </div>
+                  <div>
+                    <h1 className="text-xl font-bold text-white tracking-tight">
+                      Pláticas Profundas
+                    </h1>
+                    <p className="text-xs text-[#999999] font-medium">
+                      Gestiona los filtros y categorías
+                    </p>
+                  </div>
                 </div>
               </div>
               <button
                 onClick={() => setShowUploadModal(true)}
-                className="px-4 py-2 bg-brand-purple hover:bg-brand-purple/90 text-white rounded-xl font-medium transition-all duration-200 flex items-center gap-2 shadow-lg shadow-brand-purple/20"
+                className="px-5 py-2.5 bg-[#7B46F8] hover:bg-[#7B46F8]/90 text-white font-semibold rounded-xl transition-all duration-200 flex items-center gap-2 shadow-lg shadow-[#7B46F8]/20 hover:shadow-[#7B46F8]/30"
               >
                 <svg
                   className="w-5 h-5"
@@ -926,141 +992,76 @@ Autoconocimiento,compass,2,true,¿Cuáles son los valores que guían tus decisio
         </header>
 
         {/* Main Content */}
-        <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        <main className="max-w-7xl mx-auto px-6 lg:px-8 py-8">
           {/* Hero Section */}
-          <div className="mb-8">
-            <h2 className="text-3xl font-bold text-text-primary mb-2">
-              Pláticas Profundas
+          <div className="mb-10">
+            <p className="text-lg text-[#999999] mb-2 font-medium">
+              ¡Bienvenido de nuevo!
+            </p>
+            <h2 className="text-3xl sm:text-4xl font-bold text-white mb-2 tracking-tight">
+              ¡Administra tus Conversaciones!
             </h2>
-            <p className="text-text-secondary">
-              Gestiona los filtros para organizar las categorías de conversaciones
+            <p className="text-base text-[#CCCCCC]">
+              Crea, edita y organiza los filtros y categorías de Deep Talks
             </p>
           </div>
 
           {/* Stats Cards */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-8">
-            <div className="group bg-bg-secondary/80 backdrop-blur-sm border border-border rounded-2xl p-6 shadow-lg shadow-black/10 hover:border-brand-purple/50 transition-all duration-300">
-              <div className="flex items-center justify-between mb-4">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-purple/20 to-brand-purple/5 border border-brand-purple/30 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                  <svg
-                    className="w-6 h-6 text-brand-purple"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M19 11H5m14 0a2 2 0 012 2v6a2 2 0 01-2 2H5a2 2 0 01-2-2v-6a2 2 0 012-2m14 0V9a2 2 0 00-2-2M5 11V9a2 2 0 012-2m0 0V5a2 2 0 012-2h6a2 2 0 012 2v2M7 7h10"
-                    />
-                  </svg>
-                </div>
-              </div>
-              <p className="text-3xl font-bold text-text-primary mb-1">{filters.length}</p>
-              <p className="text-sm text-text-secondary">Total de Filtros</p>
+          <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 mb-10">
+            <div className="text-center">
+              <div className="text-3xl font-bold text-[#7B46F8] mb-2">{filters.length}</div>
+              <div className="text-sm text-[#999999]">Total de Filtros</div>
             </div>
-
-            <div className="group bg-bg-secondary/80 backdrop-blur-sm border border-border rounded-2xl p-6 shadow-lg shadow-black/10 hover:border-success/50 transition-all duration-300">
-              <div className="flex items-center justify-between mb-4">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-success/20 to-success/5 border border-success/30 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                  <svg
-                    className="w-6 h-6 text-success"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                    />
-                  </svg>
-                </div>
-              </div>
-              <p className="text-3xl font-bold text-success mb-1">
+            <div className="text-center">
+              <div className="text-3xl font-bold text-[#7B46F8] mb-2">
                 {filters.filter((c) => c.is_active).length}
-              </p>
-              <p className="text-sm text-text-secondary">Activos</p>
-            </div>
-
-            <div className="group bg-bg-secondary/80 backdrop-blur-sm border border-border rounded-2xl p-6 shadow-lg shadow-black/10 hover:border-brand-pink/50 transition-all duration-300">
-              <div className="flex items-center justify-between mb-4">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-pink/20 to-brand-pink/5 border border-brand-pink/30 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                  <svg
-                    className="w-6 h-6 text-brand-pink"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M5 3v4M3 5h4M6 17v4m-2-2h4m5-16l2.286 6.857L21 12l-5.714 2.143L13 21l-2.286-6.857L5 12l5.714-2.143L13 3z"
-                    />
-                  </svg>
-                </div>
               </div>
-              <p className="text-3xl font-bold text-brand-pink mb-1">
+              <div className="text-sm text-[#999999]">Filtros Activos</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold text-[#FF6B9D] mb-2">
                 {filters.filter((c) => c.is_premium).length}
-              </p>
-              <p className="text-sm text-text-secondary">Premium</p>
-            </div>
-
-            <div className="group bg-bg-secondary/80 backdrop-blur-sm border border-border rounded-2xl p-6 shadow-lg shadow-black/10 hover:border-brand-blue/50 transition-all duration-300">
-              <div className="flex items-center justify-between mb-4">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-blue/20 to-brand-blue/5 border border-brand-blue/30 flex items-center justify-center group-hover:scale-110 transition-transform duration-300">
-                  <svg
-                    className="w-6 h-6 text-brand-blue"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                    />
-                  </svg>
-                </div>
               </div>
-              <p className="text-3xl font-bold text-brand-blue mb-1">
+              <div className="text-sm text-[#999999]">Premium</div>
+            </div>
+            <div className="text-center">
+              <div className="text-3xl font-bold text-[#7B46F8] mb-2">
                 {filters.reduce((sum, cat) => sum + cat.deep_talk_count, 0)}
-              </p>
-              <p className="text-sm text-text-secondary">Total de Categorías</p>
+              </div>
+              <div className="text-sm text-[#999999]">Total de Categorías</div>
             </div>
           </div>
 
           {/* Lista de filtros */}
           {isLoading ? (
-            <div className="flex items-center justify-center py-12">
-              <div className="w-16 h-16 border-4 border-brand-purple/30 border-t-brand-purple rounded-full animate-spin"></div>
+            <div className="flex items-center justify-center py-20">
+              <div className="text-center">
+                <div className="w-16 h-16 mx-auto mb-4 border-4 border-[#7B46F8]/30 border-t-[#7B46F8] rounded-full animate-spin"></div>
+                <p className="text-[#999999]">Cargando...</p>
+              </div>
             </div>
           ) : (
             <>
               {/* Filtros */}
-              {filters.length > 0 && (
-                <div className="mb-12">
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-4">
-                      <h3 className="text-xl font-bold text-text-primary">
-                        Todos los Filtros
-                      </h3>
+              <div className="mb-12">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-4">
+                    <h3 className="text-xl font-bold text-white">
+                      Todos los Filtros
+                    </h3>
 
-                      {/* Search input */}
+                    {/* Search input - solo mostrar si hay filtros */}
+                    {filters.length > 0 && (
                       <div className="relative">
                         <input
                           type="text"
                           placeholder="Buscar filtro..."
                           value={filterSearchTerm}
                           onChange={(e) => setFilterSearchTerm(e.target.value)}
-                          className="w-64 px-4 py-2 pl-10 bg-bg-secondary/80 border border-border rounded-xl text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-brand-purple/50 transition-all duration-200"
+                          className="w- px-4 py-2 pl-10 bg-[#2A2A2A]/80 border border-[#333333] rounded-xl text-white placeholder:text-[#666666] focus:outline-none focus:border-[#7B46F8]/50 transition-all duration-200"
                         />
                         <svg
-                          className="w-5 h-5 text-text-tertiary absolute left-3 top-1/2 -translate-y-1/2"
+                          className="w-5 h-5 text-[#666666] absolute left-3 top-1/2 -translate-y-1/2"
                           fill="none"
                           stroke="currentColor"
                           viewBox="0 0 24 24"
@@ -1073,17 +1074,19 @@ Autoconocimiento,compass,2,true,¿Cuáles son los valores que guían tus decisio
                           />
                         </svg>
                       </div>
-                    </div>
+                    )}
+                  </div>
 
-                    <div className="flex items-center gap-4">
-                      {/* Filter toggle buttons */}
-                      <div className="flex items-center gap-2 bg-bg-secondary/80 border border-border rounded-lg p-1">
+                  <div className="flex items-center gap-4">
+                    {/* Filter toggle buttons - solo mostrar si hay filtros */}
+                    {filters.length > 0 && (
+                      <div className="flex items-center gap-2 bg-[#2A2A2A]/80 border border-[#333333] rounded-lg p-1">
                         <button
                           onClick={() => setFilterStatus('all')}
                           className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all duration-200 ${
                             filterStatus === 'all'
-                              ? 'bg-brand-purple text-white shadow-md'
-                              : 'text-text-tertiary hover:text-text-primary'
+                              ? 'bg-[#7B46F8] text-white shadow-md'
+                              : 'text-[#666666] hover:text-white'
                           }`}
                         >
                           Todos
@@ -1092,8 +1095,8 @@ Autoconocimiento,compass,2,true,¿Cuáles son los valores que guían tus decisio
                           onClick={() => setFilterStatus('active')}
                           className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all duration-200 ${
                             filterStatus === 'active'
-                              ? 'bg-success text-white shadow-md'
-                              : 'text-text-tertiary hover:text-text-primary'
+                              ? 'bg-[#10B981] text-white shadow-md'
+                              : 'text-[#666666] hover:text-white'
                           }`}
                         >
                           Activos
@@ -1103,33 +1106,34 @@ Autoconocimiento,compass,2,true,¿Cuáles son los valores que guían tus decisio
                           className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all duration-200 ${
                             filterStatus === 'inactive'
                               ? 'bg-red-500 text-white shadow-md'
-                              : 'text-text-tertiary hover:text-text-primary'
+                              : 'text-[#666666] hover:text-white'
                           }`}
                         >
                           Inactivos
                         </button>
                       </div>
+                    )}
 
-                      <Link href="/deep-talks/categories/new">
-                        <button className="px-4 py-2 bg-brand-yellow hover:bg-brand-yellow/90 text-black font-semibold rounded-xl transition-all duration-200 flex items-center gap-2 shadow-lg shadow-brand-yellow/20 hover:scale-105">
-                          <svg
-                            className="w-5 h-5"
-                            fill="none"
-                            stroke="currentColor"
-                            viewBox="0 0 24 24"
-                          >
-                            <path
-                              strokeLinecap="round"
-                              strokeLinejoin="round"
-                              strokeWidth={2}
-                              d="M12 4v16m8-8H4"
-                            />
-                          </svg>
-                          Nuevo Filtro
-                        </button>
-                      </Link>
-                    </div>
+                    <Link href="/deep-talks/categories/new">
+                      <button className="px-5 py-2.5 bg-[#7B46F8] hover:bg-[#7B46F8]/90 text-white font-semibold rounded-xl transition-all duration-200 flex items-center gap-2 shadow-lg shadow-[#7B46F8]/20 hover:shadow-[#7B46F8]/30">
+                        <svg
+                          className="w-5 h-5"
+                          fill="none"
+                          stroke="currentColor"
+                          viewBox="0 0 24 24"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth={2}
+                            d="M12 4v16m8-8H4"
+                          />
+                        </svg>
+                        Nuevo Filtro
+                      </button>
+                    </Link>
                   </div>
+                </div>
 
                   {(() => {
                     const filteredFilters = filters.filter((category) => {
@@ -1150,10 +1154,10 @@ Autoconocimiento,compass,2,true,¿Cuáles son los valores que guían tus decisio
 
                     if (filteredFilters.length === 0) {
                       return (
-                        <div className="col-span-full bg-bg-secondary/80 backdrop-blur-sm border border-border rounded-2xl p-12 text-center shadow-lg shadow-black/10">
-                          <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-brand-purple/20 to-brand-purple/5 border border-brand-purple/30 flex items-center justify-center">
+                        <div className="col-span-full bg-[#2A2A2A] border border-[#333333] rounded-2xl p-12 text-center shadow-lg shadow-black/20">
+                          <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-[#7B46F8]/20 to-[#7B46F8]/5 border border-[#7B46F8]/30 flex items-center justify-center">
                             <svg
-                              className="w-10 h-10 text-brand-purple"
+                              className="w-10 h-10 text-[#7B46F8]"
                               fill="none"
                               stroke="currentColor"
                               viewBox="0 0 24 24"
@@ -1166,10 +1170,10 @@ Autoconocimiento,compass,2,true,¿Cuáles son los valores que guían tus decisio
                               />
                             </svg>
                           </div>
-                          <h3 className="text-xl font-bold text-text-primary mb-2">
+                          <h3 className="text-2xl font-bold text-white mb-3">
                             No se encontraron filtros
                           </h3>
-                          <p className="text-text-secondary">
+                          <p className="text-[#CCCCCC] mb-8 max-w-md mx-auto leading-relaxed">
                             {filterSearchTerm.trim() !== ''
                               ? `No hay filtros que coincidan con "${filterSearchTerm}"`
                               : filterStatus === 'active'
@@ -1183,16 +1187,16 @@ Autoconocimiento,compass,2,true,¿Cuáles son los valores que guían tus decisio
                     }
 
                     return (
-                      <div className="grid grid-cols-1 md:grid-cols-2 xl:grid-cols-3 gap-4">
+                      <div className="grid grid-cols-1 lg:grid-cols-2 gap-4">
                         {filteredFilters.map((category) => {
                         const IconComponent = getIonIcon(category.icon);
 
                         return (
                           <div
                             key={category.id}
-                            className={`group bg-bg-secondary/80 backdrop-blur-sm border border-border rounded-xl overflow-hidden shadow-lg shadow-black/10 hover:border-brand-purple/50 transition-all duration-300 hover:shadow-brand-purple/10 ${
+                            className={`group bg-[#2A2A2A] border border-[#333333] rounded-2xl overflow-hidden shadow-lg shadow-black/20 hover:border-[#7B46F8]/30 transition-all duration-300 ${
                               !category.is_active ? 'opacity-60 blur-[0.5px]' : ''
-                            }`}
+                            }` }
                           >
                     {/* Header con color - más compacto */}
                     <div
@@ -1242,17 +1246,17 @@ Autoconocimiento,compass,2,true,¿Cuáles son los valores que guían tus decisio
                     </div>
 
                     {/* Contenido más compacto */}
-                    <div className="p-4">
-                      <h3 className="text-lg font-bold text-text-primary mb-1 group-hover:text-brand-purple transition-colors line-clamp-1">
+                    <div className="p-6">
+                      <h3 className="text-xl font-bold text-white mb-2 group-hover:text-[#7B46F8] transition-colors line-clamp-1">
                         {category.translations.es.name}
                       </h3>
 
                       {/* Label e Icono para copiar */}
                       <div className="space-y-2 mb-4">
                         <div className="flex items-center gap-2">
-                          <span className="text-xs font-bold text-text-tertiary uppercase">Label:</span>
-                          <div className="flex-1 flex items-center gap-2 bg-brand-purple/10 border border-brand-purple/30 rounded-lg px-3 py-2">
-                            <code className="flex-1 text-sm font-mono font-bold text-brand-purple">
+                          <span className="text-xs font-bold text-[#666666] uppercase">Label:</span>
+                          <div className="flex-1 flex items-center gap-2 bg-[#7B46F8]/10 border border-[#7B46F8]/30 rounded-lg px-3 py-2">
+                            <code className="flex-1 text-sm font-mono font-bold text-[#7B46F8]">
                               {category.label}
                             </code>
                             <button
@@ -1260,12 +1264,12 @@ Autoconocimiento,compass,2,true,¿Cuáles son los valores que guían tus decisio
                                 e.preventDefault();
                                 e.stopPropagation();
                                 navigator.clipboard.writeText(category.label);
-                                alert('Label copiado!');
+                                setToast({ message: 'Label copiado!', type: 'success' });
                               }}
-                              className="p-1.5 hover:bg-brand-purple/20 rounded transition-colors"
+                              className="p-1.5 hover:bg-[#7B46F8]/20 rounded transition-colors"
                               title="Copiar label"
                             >
-                              <svg className="w-4 h-4 text-brand-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <svg className="w-4 h-4 text-[#7B46F8]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                               </svg>
                             </button>
@@ -1273,9 +1277,9 @@ Autoconocimiento,compass,2,true,¿Cuáles son los valores que guían tus decisio
                         </div>
                         {category.icon && (
                           <div className="flex items-center gap-2">
-                            <span className="text-xs font-bold text-text-tertiary uppercase">Icono:</span>
-                            <div className="flex-1 flex items-center gap-2 bg-brand-blue/10 border border-brand-blue/30 rounded-lg px-3 py-2">
-                              <code className="flex-1 text-sm font-mono font-bold text-brand-blue">
+                            <span className="text-xs font-bold text-[#666666] uppercase">Icono:</span>
+                            <div className="flex-1 flex items-center gap-2 bg-[#3B82F6]/10 border border-[#3B82F6]/30 rounded-lg px-3 py-2">
+                              <code className="flex-1 text-sm font-mono font-bold text-[#3B82F6]">
                                 {category.icon}
                               </code>
                               <button
@@ -1283,12 +1287,12 @@ Autoconocimiento,compass,2,true,¿Cuáles son los valores que guían tus decisio
                                   e.preventDefault();
                                   e.stopPropagation();
                                   navigator.clipboard.writeText(category.icon || '');
-                                  alert('Icono copiado!');
+                                  setToast({ message: 'Icono copiado!', type: 'success' });
                                 }}
-                                className="p-1.5 hover:bg-brand-blue/20 rounded transition-colors"
+                                className="p-1.5 hover:bg-[#3B82F6]/20 rounded transition-colors"
                                 title="Copiar icono"
                               >
-                                <svg className="w-4 h-4 text-brand-blue" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                                <svg className="w-4 h-4 text-[#3B82F6]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                                   <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
                                 </svg>
                               </button>
@@ -1298,8 +1302,8 @@ Autoconocimiento,compass,2,true,¿Cuáles son los valores que guían tus decisio
                       </div>
 
                       {/* Metadata más compacta */}
-                      <div className="flex items-center justify-between mb-3 text-xs">
-                        <div className="flex items-center gap-1.5 text-text-tertiary">
+                      <div className="flex items-center justify-between mb-4 text-xs">
+                        <div className="flex items-center gap-1.5 text-[#999999]">
                           <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path
                               strokeLinecap="round"
@@ -1311,7 +1315,7 @@ Autoconocimiento,compass,2,true,¿Cuáles son los valores que guían tus decisio
                           <span className="font-medium">{category.deep_talk_count}</span>
                         </div>
                         <div className="flex items-center gap-1">
-                          <svg className="w-3.5 h-3.5 text-text-tertiary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <svg className="w-3.5 h-3.5 text-[#999999]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path
                               strokeLinecap="round"
                               strokeLinejoin="round"
@@ -1322,7 +1326,7 @@ Autoconocimiento,compass,2,true,¿Cuáles son los valores que guían tus decisio
                           {Object.keys(category.translations).map((lang, idx) => (
                             <span
                               key={lang}
-                              className="text-[10px] font-semibold text-text-secondary"
+                              className="text-xs font-medium text-[#999999]"
                             >
                               {lang.toUpperCase()}{idx < Object.keys(category.translations).length - 1 ? ',' : ''}
                             </span>
@@ -1331,55 +1335,51 @@ Autoconocimiento,compass,2,true,¿Cuáles son los valores que guían tus decisio
                       </div>
 
                       {/* Acciones reorganizadas */}
-                      <div className="flex flex-col gap-2">
-                        {/* Primera fila: Editar y Ver Categorías */}
-                        <div className="flex gap-2">
-                          <Link
-                            href={`/deep-talks/categories/${category.id}`}
-                            className="flex-1 px-3 py-2 bg-bg-tertiary hover:bg-border border border-border text-text-primary rounded-lg text-xs font-medium transition-all duration-200 flex items-center justify-center gap-1.5 group/btn"
-                          >
-                            <svg
-                              className="w-3.5 h-3.5 group-hover/btn:text-brand-purple transition-colors"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                              />
-                            </svg>
-                            Editar
-                          </Link>
-                          <Link
-                            href={`/deep-talks/categories/${category.id}/deep-talks`}
-                            className="flex-1 px-3 py-2 bg-brand-purple/10 hover:bg-brand-purple/20 border border-brand-purple/30 text-brand-purple rounded-lg text-xs font-medium transition-all duration-200 flex items-center justify-center gap-1.5 hover:scale-[1.02]"
-                          >
-                            <svg
-                              className="w-3.5 h-3.5"
-                              fill="none"
-                              stroke="currentColor"
-                              viewBox="0 0 24 24"
-                            >
-                              <path
-                                strokeLinecap="round"
-                                strokeLinejoin="round"
-                                strokeWidth={2}
-                                d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                              />
-                            </svg>
-                            Ver Categorías
-                          </Link>
-                        </div>
-                        {/* Segunda fila: Eliminar (ancho completo) */}
-                        <button
-                          onClick={() => handleDeleteFilterClick(category.id)}
-                          className="w-full px-3 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-500 rounded-lg text-xs font-medium transition-all duration-200 flex items-center justify-center gap-1.5 hover:scale-[1.02]"
+                      <div className="flex items-center gap-2">
+                        <Link
+                          href={`/deep-talks/categories/${category.id}`}
+                          className="flex-1 px-4 py-2.5 bg-[#2A2A2A] hover:bg-[#333333] border border-[#333333] hover:border-[#7B46F8]/30 text-white rounded-xl text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-black/30"
                         >
                           <svg
-                            className="w-3.5 h-3.5"
+                            className="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
+                            />
+                          </svg>
+                          Editar
+                        </Link>
+                        <Link
+                          href={`/deep-talks/categories/${category.id}/deep-talks`}
+                          className="flex-1 px-4 py-2.5 bg-[#7B46F8] hover:bg-[#7B46F8]/90 text-white rounded-xl text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-[#7B46F8]/20"
+                        >
+                          <svg
+                            className="w-4 h-4"
+                            fill="none"
+                            stroke="currentColor"
+                            viewBox="0 0 24 24"
+                          >
+                            <path
+                              strokeLinecap="round"
+                              strokeLinejoin="round"
+                              strokeWidth={2}
+                              d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                            />
+                          </svg>
+                          Ver Categorías
+                        </Link>
+                        <button
+                          onClick={() => handleDeleteFilterClick(category.id)}
+                          className="px-4 py-2.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-500 rounded-xl text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2"
+                        >
+                          <svg
+                            className="w-4 h-4"
                             fill="none"
                             stroke="currentColor"
                             viewBox="0 0 24 24"
@@ -1391,7 +1391,6 @@ Autoconocimiento,compass,2,true,¿Cuáles son los valores que guían tus decisio
                               d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
                             />
                           </svg>
-                          Eliminar
                         </button>
                       </div>
                     </div>
@@ -1401,29 +1400,28 @@ Autoconocimiento,compass,2,true,¿Cuáles son los valores que guían tus decisio
                       </div>
                     );
                   })()}
-                </div>
-              )}
+              </div>
 
               {/* Categorías (Deep Talks) */}
-              {deepTalks.length > 0 && (
-                <div>
-                  <div className="flex items-center justify-between mb-6">
-                    <div className="flex items-center gap-4">
-                      <h3 className="text-xl font-bold text-text-primary">
-                        Todas las Categorías
-                      </h3>
+              <div className="mb-12">
+                <div className="flex items-center justify-between mb-6">
+                  <div className="flex items-center gap-4">
+                    <h3 className="text-xl font-bold text-white">
+                      Todas las Categorías
+                    </h3>
 
-                      {/* Search input */}
+                    {/* Search input - solo mostrar si hay categorías */}
+                    {deepTalks.length > 0 && (
                       <div className="relative">
                         <input
                           type="text"
                           placeholder="Buscar categoría..."
                           value={categorySearchTerm}
                           onChange={(e) => setCategorySearchTerm(e.target.value)}
-                          className="w-64 px-4 py-2 pl-10 bg-bg-secondary/80 border border-border rounded-xl text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-brand-purple/50 transition-all duration-200"
+                          className="w-64 px-4 py-2 pl-10 bg-[#2A2A2A]/80 border border-[#333333] rounded-xl text-white placeholder:text-[#666666] focus:outline-none focus:border-[#7B46F8]/50 transition-all duration-200"
                         />
                         <svg
-                          className="w-5 h-5 text-text-tertiary absolute left-3 top-1/2 -translate-y-1/2"
+                          className="w-5 h-5 text-[#666666] absolute left-3 top-1/2 -translate-y-1/2"
                           fill="none"
                           stroke="currentColor"
                           viewBox="0 0 24 24"
@@ -1436,17 +1434,19 @@ Autoconocimiento,compass,2,true,¿Cuáles son los valores que guían tus decisio
                           />
                         </svg>
                       </div>
-                    </div>
+                    )}
+                  </div>
 
-                    <div className="flex items-center gap-4">
-                      {/* Filter toggle buttons */}
-                      <div className="flex items-center gap-2 bg-bg-secondary/80 border border-border rounded-lg p-1">
+                  <div className="flex items-center gap-4">
+                    {/* Filter toggle buttons - solo mostrar si hay categorías */}
+                    {deepTalks.length > 0 && (
+                      <div className="flex items-center gap-2 bg-[#2A2A2A]/80 border border-[#333333] rounded-lg p-1">
                         <button
                           onClick={() => setCategoryFilterStatus('all')}
                           className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all duration-200 ${
                             categoryFilterStatus === 'all'
-                              ? 'bg-brand-purple text-white shadow-md'
-                              : 'text-text-tertiary hover:text-text-primary'
+                              ? 'bg-[#7B46F8] text-white shadow-md'
+                              : 'text-[#666666] hover:text-white'
                           }`}
                         >
                           Todos
@@ -1455,8 +1455,8 @@ Autoconocimiento,compass,2,true,¿Cuáles son los valores que guían tus decisio
                           onClick={() => setCategoryFilterStatus('active')}
                           className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all duration-200 ${
                             categoryFilterStatus === 'active'
-                              ? 'bg-success text-white shadow-md'
-                              : 'text-text-tertiary hover:text-text-primary'
+                              ? 'bg-[#10B981] text-white shadow-md'
+                              : 'text-[#666666] hover:text-white'
                           }`}
                         >
                           Activos
@@ -1466,36 +1466,61 @@ Autoconocimiento,compass,2,true,¿Cuáles son los valores que guían tus decisio
                           className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all duration-200 ${
                             categoryFilterStatus === 'inactive'
                               ? 'bg-red-500 text-white shadow-md'
-                              : 'text-text-tertiary hover:text-text-primary'
+                              : 'text-[#666666] hover:text-white'
                           }`}
                         >
                           Inactivos
                         </button>
                       </div>
+                    )}
 
-                      <button
-                        onClick={() => setShowFilterSelector(true)}
-                        className="px-4 py-2 bg-brand-yellow hover:bg-brand-yellow/90 text-black font-semibold rounded-xl transition-all duration-200 flex items-center gap-2 shadow-lg shadow-brand-yellow/20 hover:scale-105"
+                    <button
+                      onClick={() => setShowFilterSelector(true)}
+                      className="px-5 py-2.5 bg-[#7B46F8] hover:bg-[#7B46F8]/90 text-white font-semibold rounded-xl transition-all duration-200 flex items-center gap-2 shadow-lg shadow-[#7B46F8]/20 hover:shadow-[#7B46F8]/30"
+                    >
+                      <svg
+                        className="w-5 h-5"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
                       >
-                        <svg
-                          className="w-5 h-5"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M12 4v16m8-8H4"
-                          />
-                        </svg>
-                        Crear Nueva Categoría
-                      </button>
-                    </div>
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M12 4v16m8-8H4"
+                        />
+                      </svg>
+                      Crear Nueva Categoría
+                    </button>
                   </div>
+                </div>
 
-                  {(() => {
+                {deepTalks.length === 0 ? (
+                  <div className="bg-bg-secondary/80 backdrop-blur-sm border border-border rounded-2xl p-12 text-center shadow-lg shadow-black/10">
+                    <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-brand-yellow/20 to-brand-yellow/5 border border-brand-yellow/30 flex items-center justify-center">
+                      <svg
+                        className="w-10 h-10 text-brand-yellow"
+                        fill="none"
+                        stroke="currentColor"
+                        viewBox="0 0 24 24"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth={2}
+                          d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
+                        />
+                      </svg>
+                    </div>
+                    <h3 className="text-xl font-bold text-text-primary mb-2">
+                      No hay categorías aún
+                    </h3>
+                    <p className="text-[#CCCCCC] mb-6">
+                      Crea tu primera categoría de pláticas profundas seleccionando un filtro y haciendo clic en &quot;Crear Nueva Categoría&quot;
+                    </p>
+                  </div>
+                ) : (() => {
                     const filteredCategories = deepTalks.filter((deepTalk) => {
                       // Filtrar por estado activo/inactivo
                       if (categoryFilterStatus === 'active' && !deepTalk.is_active) return false;
@@ -1745,54 +1770,9 @@ Autoconocimiento,compass,2,true,¿Cuáles son los valores que guían tus decisio
                     })}
                       </div>
                     );
-                  })()}
-                </div>
-              )}
-
-              {/* Empty state cuando no hay filtros */}
-              {filters.length === 0 && deepTalks.length === 0 && (
-                <div className="bg-bg-secondary/80 backdrop-blur-sm border border-border rounded-2xl p-12 text-center shadow-lg shadow-black/10">
-                  <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-brand-purple/20 to-brand-purple/5 border border-brand-purple/30 flex items-center justify-center">
-                    <svg
-                      className="w-10 h-10 text-brand-purple"
-                      fill="none"
-                      stroke="currentColor"
-                      viewBox="0 0 24 24"
-                    >
-                      <path
-                        strokeLinecap="round"
-                        strokeLinejoin="round"
-                        strokeWidth={2}
-                        d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                      />
-                    </svg>
-                  </div>
-                  <h3 className="text-2xl font-bold text-text-primary mb-3">
-                    No hay filtros aún
-                  </h3>
-                  <p className="text-text-secondary mb-8 max-w-md mx-auto">
-                    Crea tu primer filtro de pláticas profundas para comenzar a organizar las categorías
-                  </p>
-                  <Link href="/deep-talks/categories/new">
-                    <button className="px-6 py-3 bg-brand-yellow hover:bg-brand-yellow/90 text-black font-semibold rounded-xl transition-all duration-200 flex items-center gap-2 mx-auto shadow-lg shadow-brand-yellow/20 hover:scale-105">
-                      <svg
-                        className="w-5 h-5"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M12 4v16m8-8H4"
-                        />
-                      </svg>
-                      Crear Primer Filtro
-                    </button>
-                  </Link>
-                </div>
-              )}
+                  })()
+                }
+              </div>
             </>
           )}
         </main>
@@ -1914,8 +1894,18 @@ Autoconocimiento,compass,2,true,¿Cuáles son los valores que guían tus decisio
 
       {/* Modal de Upload CSV */}
       {showUploadModal && (
-        <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-          <div className="bg-bg-secondary border border-border rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl">
+        <div
+          className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4"
+          onClick={() => {
+            setShowUploadModal(false);
+            setCsvFile(null);
+            setActiveTab('filters');
+          }}
+        >
+          <div
+            className="bg-bg-secondary border border-border rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl"
+            onClick={(e) => e.stopPropagation()}
+          >
             {/* Header */}
             <div className="sticky top-0 bg-bg-secondary border-b border-border p-6 z-10">
               <div className="flex items-center justify-between">
@@ -2034,40 +2024,55 @@ Autoconocimiento,compass,2,true,¿Cuáles son los valores que guían tus decisio
                       </svg>
                       Formato del CSV para Filtros
                     </h3>
-                    <p className="text-sm text-text-secondary mb-2">El archivo debe incluir estas columnas:</p>
+                    <p className="text-sm text-text-secondary mb-2">El archivo debe incluir estas columnas en este orden exacto:</p>
                     <div className="text-sm text-text-secondary space-y-2">
                       <div>
                         <p className="font-bold text-text-primary mb-1">Campos Obligatorios:</p>
                         <ul className="list-disc list-inside space-y-1 ml-2">
-                          <li><strong>sort_order:</strong> Orden de visualización (número entero)</li>
-                          <li><strong>is_premium:</strong> true o false</li>
-                          <li><strong>is_active:</strong> true o false</li>
-                          <li><strong>name_es:</strong> Nombre en español</li>
-                          <li><strong>name_en:</strong> Nombre en inglés</li>
+                          <li><strong>label:</strong> Identificador interno único en minúsculas con guiones bajos (ej: relationships, personal_growth)</li>
+                          <li><strong>sort_order:</strong> Orden de visualización (número entero, ej: 1, 2, 3)</li>
+                          <li><strong>is_premium:</strong> true o false (indica si es contenido premium)</li>
+                          <li><strong>is_active:</strong> true o false (indica si está activo)</li>
+                          <li><strong>name_es:</strong> Nombre del filtro en español</li>
+                          <li><strong>name_en:</strong> Nombre del filtro en inglés</li>
                         </ul>
                       </div>
                       <div>
                         <p className="font-bold text-text-primary mb-1">Campos Opcionales:</p>
                         <ul className="list-disc list-inside space-y-1 ml-2">
-                          <li><strong>label:</strong> Identificador interno único (ej: relationships, personal_growth) - Si no se proporciona, se auto-genera desde name_es</li>
-                          <li><strong>icon:</strong> Nombre del ícono Ionicons (ej: heart, rocket, sparkles)</li>
-                          <li><strong>color:</strong> Color hexadecimal (ej: #8B5CF6, #EC4899)</li>
+                          <li><strong>icon:</strong> Nombre del ícono Ionicons o emoji (ej: heart, rocket, 🔥, ❤️)</li>
+                          <li><strong>color:</strong> Color hexadecimal con # (ej: #8B5CF6, #EC4899, #F59E0B)</li>
                           <li><strong>route:</strong> Ruta de navegación (ej: /deep-talks/relationships)</li>
-                          <li><strong>name_pt:</strong> Nombre en portugués</li>
-                          <li><strong>name_fr:</strong> Nombre en francés</li>
-                          <li><strong>name_it:</strong> Nombre en italiano</li>
                         </ul>
                       </div>
                     </div>
-                    <p className="text-xs text-text-tertiary mt-3">
-                      <strong>Nota:</strong> El game_mode_id se asigna automáticamente para Deep Talks. Si no se proporciona label, se genera automáticamente desde name_es.
-                    </p>
-                    <button
-                      onClick={handleDownloadExampleFilters}
-                      className="mt-4 px-4 py-2 bg-brand-purple text-white rounded-lg text-sm font-semibold hover:bg-brand-purple/90 transition-colors"
-                    >
-                      Descargar CSV de ejemplo
-                    </button>
+                    <div className="mt-3 p-3 bg-brand-yellow/10 border border-brand-yellow/30 rounded-lg">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1">
+                          <p className="text-xs text-text-secondary">
+                            <strong className="text-brand-yellow">📋 Ejemplo de archivo CSV:</strong><br/>
+                            <code className="text-xs bg-bg-tertiary px-2 py-1 rounded mt-1 block whitespace-pre-wrap break-all">
+                              label,sort_order,is_premium,is_active,name_es,name_en,icon,color,route{'\n'}
+                              relationships,1,false,true,Relaciones,Relationships,heart,#EC4899,/deep-talks/relationships
+                            </code>
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            const csvExample = `label,sort_order,is_premium,is_active,name_es,name_en,icon,color,route
+relationships,1,false,true,Relaciones,Relationships,heart,#EC4899,/deep-talks/relationships`;
+                            navigator.clipboard.writeText(csvExample);
+                            setToast({ message: 'Ejemplo CSV copiado!', type: 'success' });
+                          }}
+                          className="flex-shrink-0 p-2 hover:bg-brand-yellow/20 rounded-lg transition-colors"
+                          title="Copiar ejemplo CSV"
+                        >
+                          <svg className="w-5 h-5 text-brand-yellow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
                   <div>
@@ -2167,21 +2172,36 @@ Autoconocimiento,compass,2,true,¿Cuáles son los valores que guían tus decisio
                           <li><strong>subtitle_es, subtitle_en:</strong> Subtítulo en español e inglés</li>
                           <li><strong>description_es, description_en:</strong> Descripción en español e inglés</li>
                           <li><strong>intensity_es, intensity_en:</strong> Intensidad: LOW, MEDIUM, HIGH</li>
-                          <li><strong>title_pt, subtitle_pt, description_pt, intensity_pt:</strong> Traducciones en portugués</li>
-                          <li><strong>title_fr, subtitle_fr, description_fr, intensity_fr:</strong> Traducciones en francés</li>
-                          <li><strong>title_it, subtitle_it, description_it, intensity_it:</strong> Traducciones en italiano</li>
                         </ul>
                       </div>
                     </div>
-                    <p className="text-xs text-text-tertiary mt-3">
-                      <strong>Nota:</strong> El filter_label debe coincidir con un filtro existente.
-                    </p>
-                    <button
-                      onClick={handleDownloadExampleCategories}
-                      className="mt-4 px-4 py-2 bg-brand-blue text-white rounded-lg text-sm font-semibold hover:bg-brand-blue/90 transition-colors"
-                    >
-                      Descargar CSV de ejemplo
-                    </button>
+                    <div className="mt-3 p-3 bg-brand-yellow/10 border border-brand-yellow/30 rounded-lg">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1">
+                          <p className="text-xs text-text-secondary">
+                            <strong className="text-brand-yellow">📋 Ejemplo de archivo CSV:</strong><br/>
+                            <code className="text-xs bg-bg-tertiary px-2 py-1 rounded mt-1 block whitespace-pre-wrap break-all">
+                              filter_label,sort_order,is_active,is_premium,title_es,title_en,icon,gradient_colors,estimated_time{'\n'}
+                              relationships,1,true,false,Amor y Pareja,Love and Relationships,heart,#EC4899|#F97316,15 min
+                            </code>
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            const csvExample = `filter_label,sort_order,is_active,is_premium,title_es,title_en,icon,gradient_colors,estimated_time
+relationships,1,true,false,Amor y Pareja,Love and Relationships,heart,#EC4899|#F97316,15 min`;
+                            navigator.clipboard.writeText(csvExample);
+                            setToast({ message: 'Ejemplo CSV copiado!', type: 'success' });
+                          }}
+                          className="flex-shrink-0 p-2 hover:bg-brand-yellow/20 rounded-lg transition-colors"
+                          title="Copiar ejemplo CSV"
+                        >
+                          <svg className="w-5 h-5 text-brand-yellow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
                   <div>
@@ -2248,13 +2268,34 @@ Autoconocimiento,compass,2,true,¿Cuáles son los valores que guían tus decisio
                           <li><strong>question_it:</strong> Pregunta en italiano</li>
                         </ul>
                       </div>
-                    </div>                
-                    <button
-                      onClick={handleDownloadExampleQuestions}
-                      className="mt-4 px-4 py-2 bg-brand-pink text-white rounded-lg text-sm font-semibold hover:bg-brand-pink/90 transition-colors"
-                    >
-                      Descargar CSV de ejemplo
-                    </button>
+                    </div>
+                    <div className="mt-3 p-3 bg-brand-yellow/10 border border-brand-yellow/30 rounded-lg">
+                      <div className="flex items-start justify-between gap-2">
+                        <div className="flex-1">
+                          <p className="text-xs text-text-secondary">
+                            <strong className="text-brand-yellow">📋 Ejemplo de archivo CSV:</strong><br/>
+                            <code className="text-xs bg-bg-tertiary px-2 py-1 rounded mt-1 block whitespace-pre-wrap break-all">
+                              title_es,sort_order,is_active,question_es,question_en,icon{'\n'}
+                              Amor y Pareja,1,true,¿Qué es lo que más valoras en una relación?,What do you value most in a relationship?,heart
+                            </code>
+                          </p>
+                        </div>
+                        <button
+                          onClick={() => {
+                            const csvExample = `title_es,sort_order,is_active,question_es,question_en,icon
+Amor y Pareja,1,true,¿Qué es lo que más valoras en una relación?,What do you value most in a relationship?,heart`;
+                            navigator.clipboard.writeText(csvExample);
+                            setToast({ message: 'Ejemplo CSV copiado!', type: 'success' });
+                          }}
+                          className="flex-shrink-0 p-2 hover:bg-brand-yellow/20 rounded-lg transition-colors"
+                          title="Copiar ejemplo CSV"
+                        >
+                          <svg className="w-5 h-5 text-brand-yellow" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 16H6a2 2 0 01-2-2V6a2 2 0 012-2h8a2 2 0 012 2v2m-6 12h8a2 2 0 002-2v-8a2 2 0 00-2-2h-8a2 2 0 00-2 2v8a2 2 0 002 2z" />
+                          </svg>
+                        </button>
+                      </div>
+                    </div>
                   </div>
 
                   <div>
@@ -2434,6 +2475,15 @@ Autoconocimiento,compass,2,true,¿Cuáles son los valores que guían tus decisio
             </div>
           </div>
         </div>
+      )}
+
+      {/* Toast de notificación */}
+      {toast && (
+        <Toast
+          message={toast.message}
+          type={toast.type}
+          onClose={() => setToast(null)}
+        />
       )}
     </div>
   );

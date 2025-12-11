@@ -4,7 +4,6 @@ import { useState, use } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
 import Toast from '@/components/ui/Toast';
 import EmojiOrIconPicker from '@/components/ui/EmojiOrIconPicker';
@@ -33,11 +32,6 @@ export default function NewChallengePage({ params }: PageProps) {
   const router = useRouter();
   const { toast, showToast, hideToast } = useToast();
   const [isLoading, setIsLoading] = useState(false);
-
-  // Modo de entrada: manual o CSV
-  const [inputMode, setInputMode] = useState<'manual' | 'csv'>('manual');
-  const [csvFile, setCsvFile] = useState<File | null>(null);
-  const [csvProgress, setCsvProgress] = useState<{ current: number; total: number; errors: string[] }>({ current: 0, total: 0, errors: [] });
 
   // Idiomas seleccionados
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>(['es', 'en']);
@@ -111,165 +105,6 @@ export default function NewChallengePage({ params }: PageProps) {
     }
   };
 
-  const handleCSVUpload = async (e: React.FormEvent) => {
-    e.preventDefault();
-
-    if (!csvFile) {
-      showToast({ message: 'Por favor selecciona un archivo CSV', type: 'warning' });
-      return;
-    }
-
-    setIsLoading(true);
-    setCsvProgress({ current: 0, total: 0, errors: [] });
-
-    try {
-      // Leer el archivo CSV
-      const text = await csvFile.text();
-      const lines = text.split('\n').filter(line => line.trim());
-
-      if (lines.length < 2) {
-        showToast({ message: 'El archivo CSV está vacío o no tiene datos', type: 'error' });
-        setIsLoading(false);
-        return;
-      }
-
-      // Parsear header
-      const headers = lines[0].split(',').map(h => h.trim());
-      const requiredHeaders = ['icon', 'is_premium', 'is_active', 'content_es', 'content_en'];
-      const missingHeaders = requiredHeaders.filter(h => !headers.includes(h));
-
-      if (missingHeaders.length > 0) {
-        showToast({ message: `Faltan columnas requeridas en el CSV: ${missingHeaders.join(', ')}`, type: 'error' });
-        setIsLoading(false);
-        return;
-      }
-
-      const challenges = [];
-      const errors: string[] = [];
-
-      // Parsear datos
-      for (let i = 1; i < lines.length; i++) {
-        const line = lines[i];
-        if (!line.trim()) continue;
-
-        const values = line.split(',').map(v => v.trim());
-        const row: Record<string, string> = {};
-
-        headers.forEach((header, index) => {
-          row[header] = values[index] || '';
-        });
-
-        // Validar datos requeridos
-        if (!row.content_es || !row.content_en) {
-          errors.push(`Fila ${i + 1}: Falta contenido en español o inglés`);
-          continue;
-        }
-
-        challenges.push({
-          icon: row.icon || null,
-          is_premium: row.is_premium === 'true' || row.is_premium === '1',
-          is_active: row.is_active === 'true' || row.is_active === '1',
-          translations: {
-            es: row.content_es,
-            en: row.content_en,
-            fr: row.content_fr || '',
-            it: row.content_it || '',
-            pt: row.content_pt || '',
-          }
-        });
-      }
-
-      if (challenges.length === 0) {
-        showToast({ message: 'No se encontraron retos válidos en el CSV', type: 'error' });
-        setIsLoading(false);
-        return;
-      }
-
-      setCsvProgress({ current: 0, total: challenges.length, errors });
-
-      // Usar Supabase client para insertar
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      );
-
-      let successCount = 0;
-      const insertErrors: string[] = [...errors];
-
-      // Insertar retos uno por uno
-      for (let i = 0; i < challenges.length; i++) {
-        const challenge = challenges[i];
-        setCsvProgress(prev => ({ ...prev, current: i + 1 }));
-
-        try {
-          // 1. Insertar el challenge
-          const { data: challengeData, error: challengeError } = await supabase
-            .from('challenges')
-            .insert({
-              challenge_category_id: categoryId,
-              icon: challenge.icon,
-              is_active: challenge.is_active,
-              is_premium: challenge.is_premium,
-            })
-            .select('id')
-            .single();
-
-          if (challengeError) {
-            insertErrors.push(`Reto ${i + 1}: ${challengeError.message}`);
-            continue;
-          }
-
-          // 2. Insertar traducciones
-          const translationsToInsert = Object.entries(challenge.translations)
-            .filter(([_, content]) => content.trim() !== '')
-            .map(([lang, content]) => ({
-              challenge_id: challengeData.id,
-              language_code: lang,
-              content: content,
-              icon: challenge.icon,
-            }));
-
-          const { error: translationsError } = await supabase
-            .from('challenge_translations')
-            .insert(translationsToInsert);
-
-          if (translationsError) {
-            // Si falla, eliminar el challenge
-            await supabase.from('challenges').delete().eq('id', challengeData.id);
-            insertErrors.push(`Reto ${i + 1}: Error en traducciones - ${translationsError.message}`);
-            continue;
-          }
-
-          successCount++;
-        } catch (error: any) {
-          insertErrors.push(`Reto ${i + 1}: ${error.message}`);
-        }
-      }
-
-      setCsvProgress(prev => ({ ...prev, errors: insertErrors }));
-
-      // Mostrar resumen
-      if (successCount > 0) {
-        showToast({
-          message: `✅ Importación completada: ${successCount} reto(s) importado(s) exitosamente${insertErrors.length > 0 ? `, ${insertErrors.length} error(es)` : ''}`,
-          type: 'success',
-          duration: 3000
-        });
-        setTimeout(() => {
-          router.push(`/challenges/categories/${categoryId}/challenges`);
-        }, 1500);
-      } else {
-        showToast({ message: '❌ No se pudo importar ningún reto. Revisa los errores.', type: 'error' });
-      }
-    } catch (error) {
-      console.error('Error:', error);
-      showToast({ message: 'Error al procesar el archivo CSV: ' + (error instanceof Error ? error.message : 'Error desconocido'), type: 'error' });
-    } finally {
-      setIsLoading(false);
-    }
-  };
-
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setIsLoading(true);
@@ -286,49 +121,30 @@ export default function NewChallengePage({ params }: PageProps) {
         return;
       }
 
-      // Usar Supabase client para insertar
-      const { createClient } = await import('@supabase/supabase-js');
-      const supabase = createClient(
-        process.env.NEXT_PUBLIC_SUPABASE_URL!,
-        process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY!
-      );
+      // Preparar datos del reto
+      const challengeData = {
+        challenge_category_id: categoryId,
+        icon: formData.icon || null,
+        is_active: formData.is_active,
+        is_premium: formData.is_premium,
+      };
 
-      // 1. Insertar el challenge
-      const { data: challenge, error: challengeError } = await supabase
-        .from('challenges')
-        .insert({
-          challenge_category_id: categoryId,
-          icon: formData.icon || null,
-          is_active: formData.is_active,
-          is_premium: formData.is_premium,
-        })
-        .select('id')
-        .single();
-
-      if (challengeError) {
-        throw new Error(challengeError.message);
-      }
-
-      // 2. Insertar traducciones
+      // Preparar traducciones
       const translationsToInsert = selectedLanguages.map((lang) => ({
-        challenge_id: challenge.id,
         language_code: lang,
         content: translations[lang].content,
-        icon: formData.icon || null,
       }));
 
-      const { error: translationsError } = await supabase
-        .from('challenge_translations')
-        .insert(translationsToInsert);
+      // Usar Server Action para crear el reto
+      const { createChallenge } = await import('@/actions/challenges');
+      const result = await createChallenge(challengeData, translationsToInsert);
 
-      if (translationsError) {
-        // Si falla, eliminar el challenge
-        await supabase.from('challenges').delete().eq('id', challenge.id);
-        throw new Error(translationsError.message);
+      if (!result.success) {
+        throw new Error(result.error);
       }
 
       // Éxito - redirigir
-      showToast({ message: `¡Reto creado exitosamente! ID: ${challenge.id}`, type: 'success' });
+      showToast({ message: `¡Reto creado exitosamente!`, type: 'success' });
       setTimeout(() => {
         router.push(`/challenges/categories/${categoryId}/challenges`);
       }, 1000);
@@ -342,27 +158,52 @@ export default function NewChallengePage({ params }: PageProps) {
   };
 
   return (
-    <div className="min-h-screen bg-bg-primary">
+    <div className="min-h-screen bg-[#1A1A1A] relative overflow-hidden">
+      {/* Formas decorativas de fondo */}
+      <div className="absolute top-0 left-0 w-full pointer-events-none opacity-15">
+        <Image
+          src="/resources/top-shapes.png"
+          alt=""
+          width={1920}
+          height={300}
+          className="w-full h-auto"
+          priority
+        />
+      </div>
+      <div className="absolute bottom-0 left-0 w-full pointer-events-none opacity-15">
+        <Image
+          src="/resources/bottom-shapes.png"
+          alt=""
+          width={1920}
+          height={300}
+          className="w-full h-auto"
+          priority
+        />
+      </div>
+
+      <div className="relative z-10">
       {/* Header */}
-      <header className="bg-bg-secondary/80 backdrop-blur-sm border-b border-border sticky top-0 z-50">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+      <header className="bg-[#2A2A2A]/80 backdrop-blur-sm border-b border-[#333333] sticky top-0 z-50">
+        <div className="max-w-5xl mx-auto px-6 lg:px-8">
+          <div className="flex items-center justify-between h-20">
             <div className="flex items-center gap-4">
-              <Link href="/" className="flex-shrink-0">
-                <Image
-                  src="/logos/ChallengeMe-05.png"
-                  alt="ChallengeMe"
-                  width={40}
-                  height={40}
-                  className="object-contain"
-                />
+              <Link href="/" className="shrink-0">
+                <div className="relative w-14 h-14 flex items-center justify-center">
+                  <Image
+                    src="/logos/ChallengeMe-05.png"
+                    alt="ChallengeMe"
+                    width={56}
+                    height={56}
+                    className="object-contain"
+                  />
+                </div>
               </Link>
               <Link
                 href={`/challenges/categories/${categoryId}/challenges`}
-                className="w-10 h-10 rounded-xl bg-bg-tertiary hover:bg-border border border-border flex items-center justify-center transition-colors"
+                className="w-10 h-10 rounded-xl bg-[#1A1A1A] hover:bg-[#333333] border border-[#333333] flex items-center justify-center transition-colors"
               >
                 <svg
-                  className="w-5 h-5 text-text-primary"
+                  className="w-5 h-5 text-white"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -375,9 +216,10 @@ export default function NewChallengePage({ params }: PageProps) {
                   />
                 </svg>
               </Link>
+              <div className="h-10 w-px bg-[#333333]"></div>
               <div>
-                <h1 className="text-lg font-bold text-text-primary">Nuevo Reto</h1>
-                <p className="text-xs text-text-secondary">
+                <h1 className="text-lg font-bold text-white tracking-tight">Nuevo Reto</h1>
+                <p className="text-xs text-[#999999] font-medium">
                   Agregar reto a la categoría
                 </p>
               </div>
@@ -387,168 +229,18 @@ export default function NewChallengePage({ params }: PageProps) {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Selector de modo */}
-        <div className="bg-bg-secondary/80 backdrop-blur-sm border border-border rounded-2xl p-6 shadow-lg shadow-black/10 mb-8">
-          <h2 className="text-xl font-bold text-text-primary mb-4">Método de Entrada</h2>
-          <div className="flex gap-4">
-            <button
-              type="button"
-              onClick={() => setInputMode('manual')}
-              className={`flex-1 px-6 py-4 rounded-xl font-medium transition-all ${
-                inputMode === 'manual'
-                  ? 'bg-brand-yellow text-black shadow-lg shadow-brand-yellow/20'
-                  : 'bg-bg-tertiary border border-border text-text-secondary hover:border-brand-yellow/50'
-              }`}
-            >
-              <svg className="w-6 h-6 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-              </svg>
-              Crear Manualmente
-            </button>
-            <button
-              type="button"
-              onClick={() => setInputMode('csv')}
-              className={`flex-1 px-6 py-4 rounded-xl font-medium transition-all ${
-                inputMode === 'csv'
-                  ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20'
-                  : 'bg-bg-tertiary border border-border text-text-secondary hover:border-brand-purple/50'
-              }`}
-            >
-              <svg className="w-6 h-6 mx-auto mb-2" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-              </svg>
-              Importar CSV
-            </button>
-          </div>
-        </div>
-
-        {inputMode === 'csv' ? (
-          /* Formulario CSV */
-          <form onSubmit={handleCSVUpload} className="space-y-8">
-            <div className="bg-bg-secondary/80 backdrop-blur-sm border border-border rounded-2xl p-6 shadow-lg shadow-black/10">
-              <div className="flex items-center gap-3 mb-6">
-                <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-purple/20 to-brand-purple/5 border border-brand-purple/30 flex items-center justify-center">
-                  <svg className="w-6 h-6 text-brand-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                  </svg>
-                </div>
-                <div>
-                  <h2 className="text-xl font-bold text-text-primary">Importar Retos desde CSV</h2>
-                  <p className="text-sm text-text-secondary">Sube un archivo CSV con múltiples retos</p>
-                </div>
-              </div>
-
-              {/* File input */}
-              <div className="mb-6">
-                <label className="block text-sm font-medium text-text-primary mb-2">
-                  Archivo CSV
-                </label>
-                <input
-                  type="file"
-                  accept=".csv"
-                  onChange={(e) => setCsvFile(e.target.files?.[0] || null)}
-                  className="w-full px-4 py-3 bg-bg-tertiary border border-border rounded-xl text-text-primary file:mr-4 file:py-2 file:px-4 file:rounded-lg file:border-0 file:text-sm file:font-semibold file:bg-brand-purple file:text-white hover:file:bg-brand-purple/90 transition-all"
-                />
-                <p className="text-xs text-text-tertiary mt-2">
-                  Formato requerido: icon,is_premium,is_active,content_es,content_en,content_fr,content_de,content_pt
-                </p>
-              </div>
-
-              {/* Descargable ejemplo */}
-              <div className="bg-brand-purple/10 border border-brand-purple/30 rounded-xl p-4 mb-6">
-                <div className="flex items-start gap-3">
-                  <svg className="w-5 h-5 text-brand-purple flex-shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
-                  </svg>
-                  <div className="flex-1">
-                    <p className="text-sm font-medium text-brand-purple mb-2">
-                      Descarga el archivo de ejemplo para ver el formato correcto
-                    </p>
-                    <button
-                      type="button"
-                      onClick={() => {
-                        const csvContent = `icon,is_premium,is_active,content_es,content_en,content_fr,content_de,content_pt
-🎯,false,true,Cuenta un chiste que haga reír a todos,Tell a joke that makes everyone laugh,Raconte une blague qui fait rire tout le monde,Erzähle einen Witz der alle zum Lachen bringt,Conte uma piada que faça todos rirem
-🎤,false,true,Canta una canción sin música,Sing a song without music,Chante une chanson sans musique,Singe ein Lied ohne Musik,Cante uma música sem música
-🤸,false,true,Haz 10 flexiones,Do 10 push-ups,Fais 10 pompes,Mache 10 Liegestütze,Faça 10 flexões
-💃,true,true,Baila durante 1 minuto,Dance for 1 minute,Danse pendant 1 minute,Tanze für 1 Minute,Dance por 1 minuto
-🎭,false,true,Imita a alguien de la sala,Imitate someone in the room,Imite quelqu'un dans la salle,Imitiere jemanden im Raum,Imite alguém na sala`;
-                        const blob = new Blob([csvContent], { type: 'text/csv' });
-                        const url = URL.createObjectURL(blob);
-                        const a = document.createElement('a');
-                        a.href = url;
-                        a.download = 'ejemplo_retos.csv';
-                        a.click();
-                      }}
-                      className="px-4 py-2 bg-brand-purple text-white rounded-lg text-sm font-medium hover:bg-brand-purple/90 transition-colors"
-                    >
-                      Descargar ejemplo.csv
-                    </button>
-                  </div>
-                </div>
-              </div>
-
-              {/* Progress */}
-              {csvProgress.total > 0 && (
-                <div className="bg-bg-tertiary border border-border rounded-xl p-4 mb-6">
-                  <div className="flex items-center justify-between mb-2">
-                    <span className="text-sm font-medium text-text-primary">
-                      Progreso: {csvProgress.current} / {csvProgress.total}
-                    </span>
-                    <span className="text-sm text-text-secondary">
-                      {Math.round((csvProgress.current / csvProgress.total) * 100)}%
-                    </span>
-                  </div>
-                  <div className="w-full bg-bg-primary rounded-full h-2">
-                    <div
-                      className="bg-brand-purple h-2 rounded-full transition-all duration-300"
-                      style={{ width: `${(csvProgress.current / csvProgress.total) * 100}%` }}
-                    ></div>
-                  </div>
-                  {csvProgress.errors.length > 0 && (
-                    <div className="mt-4 p-3 bg-red-500/10 border border-red-500/30 rounded-lg">
-                      <p className="text-sm font-medium text-red-500 mb-2">
-                        Errores ({csvProgress.errors.length}):
-                      </p>
-                      <ul className="text-xs text-red-400 space-y-1 max-h-40 overflow-y-auto">
-                        {csvProgress.errors.map((error: string, index: number) => (
-                          <li key={index}>• {error}</li>
-                        ))}
-                      </ul>
-                    </div>
-                  )}
-                </div>
-              )}
-            </div>
-
-            {/* Submit button */}
-            <div className="flex items-center justify-end gap-3 pt-6 border-t border-border">
-              <Button
-                type="button"
-                variant="ghost"
-                onClick={() => router.back()}
-                disabled={isLoading}
-              >
-                Cancelar
-              </Button>
-              <Button type="submit" isLoading={isLoading} disabled={!csvFile}>
-                {isLoading ? 'Importando...' : 'Importar Retos'}
-              </Button>
-            </div>
-          </form>
-        ) : (
-          /* Formulario Manual */
-          <form onSubmit={handleSubmit} className="space-y-8">
+      <main className="max-w-5xl mx-auto px-6 lg:px-8 py-8">
+        {/* Formulario Manual */}
+        <form onSubmit={handleSubmit} className="space-y-8">
           {/* Emoji del Reto */}
-          <div className="bg-bg-secondary/80 backdrop-blur-sm border border-border rounded-2xl p-6 shadow-lg shadow-black/10">
+          <div className="bg-[#2A2A2A] border border-[#333333] rounded-2xl p-6 shadow-lg shadow-black/20">
             <div className="flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-yellow/20 to-brand-yellow/5 border border-brand-yellow/30 flex items-center justify-center text-2xl">
+              <div className="w-12 h-12 rounded-xl bg-linear-to-br from-[#BDF522]/20 to-[#BDF522]/5 border border-[#BDF522]/30 flex items-center justify-center text-2xl">
                 🎨
               </div>
               <div>
-                <h2 className="text-xl font-bold text-text-primary">Icono o Emoji del Reto</h2>
-                <p className="text-sm text-text-secondary">
+                <h2 className="text-xl font-bold text-white tracking-tight">Icono o Emoji del Reto</h2>
+                <p className="text-sm text-[#999999]">
                   Elige un emoji o un icono de Ionicons para representar este reto
                 </p>
               </div>
@@ -565,11 +257,11 @@ export default function NewChallengePage({ params }: PageProps) {
           </div>
 
           {/* Información General */}
-          <div className="bg-bg-secondary/80 backdrop-blur-sm border border-border rounded-2xl p-6 shadow-lg shadow-black/10">
+          <div className="bg-[#2A2A2A] border border-[#333333] rounded-2xl p-6 shadow-lg shadow-black/20">
             <div className="flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-yellow/20 to-brand-yellow/5 border border-brand-yellow/30 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#BDF522]/20 to-[#BDF522]/5 border border-[#BDF522]/30 flex items-center justify-center">
                 <svg
-                  className="w-6 h-6 text-brand-yellow"
+                  className="w-6 h-6 text-[#BDF522]"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -583,8 +275,8 @@ export default function NewChallengePage({ params }: PageProps) {
                 </svg>
               </div>
               <div>
-                <h2 className="text-xl font-bold text-text-primary">Información General</h2>
-                <p className="text-sm text-text-secondary">
+                <h2 className="text-xl font-bold text-white tracking-tight">Información General</h2>
+                <p className="text-sm text-[#999999]">
                   Configuración básica del reto
                 </p>
               </div>
@@ -600,9 +292,9 @@ export default function NewChallengePage({ params }: PageProps) {
                     onChange={(e) =>
                       setFormData({ ...formData, is_premium: e.target.checked })
                     }
-                    className="w-5 h-5 rounded border-border text-brand-yellow focus:ring-2 focus:ring-brand-yellow/50 bg-bg-tertiary"
+                    className="w-5 h-5 rounded border-[#333333] text-[#BDF522] focus:ring-2 focus:ring-[#BDF522]/50 bg-[#1A1A1A]"
                   />
-                  <span className="text-sm text-text-primary font-medium">
+                  <span className="text-sm text-white font-medium">
                     Es contenido Premium
                   </span>
                 </label>
@@ -614,9 +306,9 @@ export default function NewChallengePage({ params }: PageProps) {
                     onChange={(e) =>
                       setFormData({ ...formData, is_active: e.target.checked })
                     }
-                    className="w-5 h-5 rounded border-border text-brand-yellow focus:ring-2 focus:ring-brand-yellow/50 bg-bg-tertiary"
+                    className="w-5 h-5 rounded border-[#333333] text-[#BDF522] focus:ring-2 focus:ring-[#BDF522]/50 bg-[#1A1A1A]"
                   />
-                  <span className="text-sm text-text-primary font-medium">
+                  <span className="text-sm text-white font-medium">
                     Reto Activo
                   </span>
                 </label>
@@ -625,7 +317,7 @@ export default function NewChallengePage({ params }: PageProps) {
           </div>
 
           {/* Idiomas */}
-          <div className="bg-bg-secondary/80 backdrop-blur-sm border border-border rounded-2xl p-6 shadow-lg shadow-black/10">
+          <div className="bg-[#2A2A2A] border border-[#333333] rounded-2xl p-6 shadow-lg shadow-black/20">
             <LanguageSelector
               selectedLanguages={selectedLanguages}
               onChange={(languages) => {
@@ -656,7 +348,7 @@ export default function NewChallengePage({ params }: PageProps) {
           </div>
 
           {/* Botones de acción */}
-          <div className="flex items-center justify-end gap-3 pt-6 border-t border-border">
+          <div className="flex items-center justify-end gap-3 pt-6 border-t border-[#333333]">
             <Button
               type="button"
               variant="ghost"
@@ -670,8 +362,8 @@ export default function NewChallengePage({ params }: PageProps) {
             </Button>
           </div>
         </form>
-        )}
       </main>
+      </div>
 
       {/* Toast notification */}
       {toast && (

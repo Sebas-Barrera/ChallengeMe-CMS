@@ -1,0 +1,6 @@
+category_id,icon,is_active,is_premium,text_es,text_en
+9e9f0e6c-4687-491f-8d9a-7a812c32e5c5,musical-notes,true,false,Canta una canción completa frente a tus amigos o familiares,Sing a complete song in front of your friends or family
+9e9f0e6c-4687-491f-8d9a-7a812c32e5c5,microphone,true,false,Improvisa una canción sobre un tema aleatorio durante 30 segundos,Improvise a song about a random topic for 30 seconds
+4b575547-7032-4050-b034-e4dcffca0449,headset,true,true,Aprende a tocar una canción nueva en un instrumento en 24 horas,Learn to play a new song on an instrument within 24 hours
+4b575547-7032-4050-b034-e4dcffca0449,beer,true,false,Cuenta tu mejor anécdota de fiesta,Tell your best party story
+4b575547-7032-4050-b034-e4dcffca0449,game-controller,true,false,Reta a alguien a un duelo de piedra papel o tijera - el perdedor toma un shot,Challenge someone to rock paper scissors - loser takes a shot

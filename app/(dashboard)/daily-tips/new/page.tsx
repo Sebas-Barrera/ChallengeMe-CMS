@@ -205,22 +205,22 @@ export default function NewDailyTipPage() {
   };
 
   return (
-    <div className="min-h-screen bg-bg-primary">
+    <div className="min-h-screen bg-[#1A1A1A]">
       <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
         {/* Header */}
         <div className="mb-8">
           <div className="flex items-center gap-3 mb-2">
             <Link
               href="/daily-tips"
-              className="text-text-tertiary hover:text-text-primary transition-colors"
+              className="text-[#999999] hover:text-white transition-colors"
             >
               <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </Link>
-            <h1 className="text-4xl font-bold text-text-primary">Nuevo Consejo del Día</h1>
+            <h1 className="text-4xl font-bold text-white">Nuevo Consejo del Día</h1>
           </div>
-          <p className="text-text-secondary ml-9">
+          <p className="text-[#CCCCCC] ml-9">
             Crea un nuevo consejo motivacional en múltiples idiomas
           </p>
         </div>
@@ -228,14 +228,14 @@ export default function NewDailyTipPage() {
         {/* Formulario */}
         <form onSubmit={handleSubmit} className="space-y-6">
           {/* Estado */}
-          <div className="bg-bg-secondary/80 backdrop-blur-sm border border-border rounded-2xl p-6 shadow-lg shadow-black/10">
-            <h3 className="text-lg font-bold text-text-primary mb-4">Estado</h3>
+          <div className="bg-[#2A2A2A] border border-[#333333] rounded-2xl p-6 shadow-lg shadow-black/20">
+            <h3 className="text-lg font-bold text-white mb-4">Estado</h3>
             <div className="flex items-center gap-3">
               <button
                 type="button"
                 onClick={() => setIsActive(!isActive)}
-                className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-brand-blue focus:ring-offset-2 focus:ring-offset-bg-secondary ${
-                  isActive ? 'bg-success' : 'bg-gray-600'
+                className={`relative inline-flex h-8 w-14 items-center rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-[#FD8616] focus:ring-offset-2 focus:ring-offset-[#2A2A2A] ${
+                  isActive ? 'bg-[#BDF522]' : 'bg-gray-600'
                 }`}
               >
                 <span
@@ -245,10 +245,10 @@ export default function NewDailyTipPage() {
                 />
               </button>
               <div>
-                <p className="text-sm font-medium text-text-primary">
+                <p className="text-sm font-medium text-white">
                   {isActive ? 'Activo' : 'Inactivo'}
                 </p>
-                <p className="text-xs text-text-secondary">
+                <p className="text-xs text-[#999999]">
                   {isActive
                     ? 'Este consejo será visible para los usuarios'
                     : 'Este consejo no será visible para los usuarios'}
@@ -258,7 +258,7 @@ export default function NewDailyTipPage() {
           </div>
 
           {/* Idiomas */}
-          <div className="bg-bg-secondary/80 backdrop-blur-sm border border-border rounded-2xl p-6 shadow-lg shadow-black/10">
+          <div className="bg-[#2A2A2A] border border-[#333333] rounded-2xl p-6 shadow-lg shadow-black/20">
             <LanguageSelector
               selectedLanguages={selectedLanguages}
               onChange={handleLanguageChange}
@@ -266,10 +266,10 @@ export default function NewDailyTipPage() {
           </div>
 
           {/* Traducciones */}
-          <div className="bg-bg-secondary/80 backdrop-blur-sm border border-border rounded-2xl p-6 shadow-lg shadow-black/10">
+          <div className="bg-[#2A2A2A] border border-[#333333] rounded-2xl p-6 shadow-lg shadow-black/20">
             <div className="mb-6">
-              <h3 className="text-lg font-bold text-text-primary mb-1">Contenido del Consejo</h3>
-              <p className="text-sm text-text-secondary">
+              <h3 className="text-lg font-bold text-white mb-1">Contenido del Consejo</h3>
+              <p className="text-sm text-[#999999]">
                 Escribe el consejo motivacional en cada idioma seleccionado
               </p>
             </div>
@@ -282,13 +282,13 @@ export default function NewDailyTipPage() {
           </div>
 
           {/* Botones de acción */}
-          <div className="flex gap-4 justify-between sticky bottom-6 bg-bg-primary/80 backdrop-blur-sm border border-border rounded-2xl p-4 shadow-2xl">
+          <div className="flex gap-4 justify-between sticky bottom-6 bg-[#2A2A2A]/95 backdrop-blur-sm border border-[#333333] rounded-2xl p-4 shadow-2xl">
             <div className="flex gap-4">
               <button
                 type="button"
                 onClick={handleAutoTranslateAll}
                 disabled={isTranslating || isSaving || !translations['es']?.text}
-                className="px-6 py-3 bg-brand-purple/10 hover:bg-brand-purple/20 border border-brand-purple/30 text-brand-purple rounded-xl font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
+                className="px-6 py-3 bg-[#7B46F8]/10 hover:bg-[#7B46F8]/20 border border-[#7B46F8]/30 text-[#7B46F8] rounded-xl font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2"
               >
                 {isTranslating ? (
                   <>
@@ -326,14 +326,14 @@ export default function NewDailyTipPage() {
             <div className="flex gap-4">
               <Link
                 href="/daily-tips"
-                className="px-6 py-3 bg-bg-tertiary hover:bg-border border border-border text-text-primary rounded-xl font-medium transition-all duration-200"
+                className="px-6 py-3 bg-[#1A1A1A] hover:bg-[#333333] border border-[#333333] text-white rounded-xl font-medium transition-all duration-200"
               >
                 Cancelar
               </Link>
             <button
               type="submit"
               disabled={isSaving}
-              className="px-6 py-3 bg-brand-blue hover:bg-brand-blue/90 text-white rounded-xl font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg shadow-brand-blue/30"
+              className="px-6 py-3 bg-[#FD8616] hover:bg-[#FD8616]/90 text-white rounded-xl font-medium transition-all duration-200 disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-2 shadow-lg shadow-[#FD8616]/30"
             >
               {isSaving ? (
                 <>

@@ -4,109 +4,148 @@ import { useState, useRef, useEffect } from 'react';
 import { createPortal } from 'react-dom';
 import * as IoIcons from 'react-icons/io5';
 
-// Lista de íconos populares de Ionicons (puedes agregar más)
+// Catálogo extenso de íconos de Ionicons
 const POPULAR_ICONS = [
-  'IoTrophy',
-  'IoBeer',
-  'IoGameController',
-  'IoHeart',
-  'IoFlame',
-  'IoStar',
+  // Trofeos y Premios
+  'IoTrophy', 'IoMedal', 'IoRibbon', 'IoDiamond',
+
+  // Bebidas y Comida
+  'IoBeer', 'IoBeerOutline', 'IoWine', 'IoCafe', 'IoCafeOutline',
+  'IoPizza', 'IoFastFood', 'IoIceCream', 'IoRestaurant', 'IoNutrition',
+
+  // Gaming y Entretenimiento
+  'IoGameController', 'IoGameControllerOutline',
+  'IoFilm', 'IoTv', 'IoRadio', 'IoHeadset', 'IoDisc', 'IoAlbums',
+
+  // Emociones y Expresiones
+  'IoHeart', 'IoHeartOutline', 'IoHeartHalf', 'IoHeartDislike', 'IoThumbsUp',
+  'IoThumbsDown', 'IoHappy', 'IoHappyOutline', 'IoSad', 'IoSadOutline',
+
+  // Efectos y Magia
+  'IoFlame', 'IoStar', 'IoStarOutline', 'IoStarHalf', 'IoSparkles',
+  'IoFlash', 'IoFlashOutline', 'IoThunderstorm', 'IoColorWand',
   'IoRocket',
-  'IoBalloon',
-  'IoGift',
-  'IoMusicalNotes',
-  'IoMusicalNote',
-  'IoChatbubbles',
-  'IoThumbsUp',
-  'IoHappy',
-  'IoSad',
-  'IoSkull',
-  'IoPizza',
-  'IoCafe',
-  'IoWine',
-  'IoBicycle',
-  'IoCar',
-  'IoAirplane',
-  'IoBoat',
-  'IoBus',
-  'IoBasketball',
-  'IoFootball',
-  'IoTennisball',
-  'IoDumbbell',
-  'IoFitness',
-  'IoBrush',
-  'IoCamera',
-  'IoFilm',
-  'IoMic',
-  'IoHeadset',
-  'IoBook',
-  'IoSchool',
-  'IoBulb',
-  'IoFlash',
-  'IoThunderstorm',
-  'IoSunny',
-  'IoMoon',
-  'IoCloud',
-  'IoRainy',
-  'IoSnow',
-  'IoLeaf',
-  'IoFlower',
-  'IoNutrition',
-  'IoPaw',
-  'IoBug',
-  'IoBonfire',
-  'IoCellular',
-  'IoDesktop',
-  'IoWatch',
-  'IoGameControllerOutline',
-  'IoGlasses',
-  'IoCart',
-  'IoStorefront',
-  'IoHome',
-  'IoRestaurant',
-  'IoFastFood',
-  'IoIceCream',
-  'IoCake',
-  'IoColorPalette',
-  'IoShirt',
-  'IoFootsteps',
-  'IoBody',
-  'IoBed',
-  'IoBandage',
-  'IoMedkit',
-  'IoBarbell',
-  'IoWalk',
-  'IoAccessibility',
-  'IoPeople',
-  'IoPerson',
-  'IoMale',
-  'IoFemale',
-  'IoMan',
-  'IoWoman',
-  'IoCard',
-  'IoCash',
-  'IoDiamond',
-  'IoRibbon',
-  'IoMedal',
-  'IoRadio',
-  'IoAlbums',
-  'IoDisc',
-  'IoGlobe',
-  'IoEarth',
-  'IoPin',
-  'IoLocation',
-  'IoCompass',
-  'IoMap',
-  'IoPlanet',
-  'IoSparkles',
-  'IoColorWand',
-  'IoMagnet',
-  'IoHammer',
-  'IoBuild',
-  'IoConstruct',
-  'IoCog',
-  'IoSettings',
+
+  // Celebración
+  'IoBalloon', 'IoBalloonOutline', 'IoGift', 'IoGiftOutline',
+
+  // Música
+  'IoMusicalNotes', 'IoMusicalNotesOutline', 'IoMusicalNote', 'IoMusicalNoteOutline',
+  'IoMic', 'IoMicOutline', 'IoMicOff', 'IoVolumeMedium', 'IoVolumeHigh', 'IoVolumeMute',
+
+  // Comunicación
+  'IoChatbubbles', 'IoChatbubblesOutline', 'IoChatbubble', 'IoChatbubbleOutline',
+  'IoMail', 'IoMailOutline', 'IoSend', 'IoShareSocial', 'IoCall', 'IoVideocam',
+
+  // Personas y Social
+  'IoPeople', 'IoPeopleOutline', 'IoPerson', 'IoPersonOutline',
+  'IoMale', 'IoMaleOutline', 'IoFemale', 'IoFemaleOutline',
+  'IoMan', 'IoManOutline', 'IoWoman', 'IoWomanOutline',
+  'IoBody', 'IoBodyOutline', 'IoAccessibility', 'IoAccessibilityOutline',
+
+  // Deportes y Actividad
+  'IoBasketball', 'IoBasketballOutline', 'IoFootball', 'IoFootballOutline',
+  'IoTennisball', 'IoTennisballOutline', 'IoBarbell',
+  'IoFitness', 'IoFitnessOutline',
+  'IoWalk', 'IoBoatOutline',
+
+  // Transporte
+  'IoCar', 'IoCarOutline', 'IoCarSport', 'IoCarSportOutline', 'IoBus', 'IoBusOutline',
+  'IoAirplane', 'IoAirplaneOutline', 'IoTrain', 'IoTrainOutline', 'IoBoat',
+  'IoBicycle', 'IoBicycleOutline', 'IoRocketOutline',
+
+  // Arte y Creatividad
+  'IoBrush', 'IoBrushOutline', 'IoCamera', 'IoCameraOutline', 'IoColorPalette', 'IoColorPaletteOutline',
+  'IoPencil', 'IoPencilOutline', 'IoCreate', 'IoCreateOutline', 'IoImage', 'IoImageOutline',
+  'IoImages', 'IoImagesOutline', 'IoEasel', 'IoEaselOutline',
+
+  // Educación
+  'IoBook', 'IoBookOutline', 'IoLibrary', 'IoLibraryOutline', 'IoSchool', 'IoSchoolOutline',
+  'IoReader', 'IoReaderOutline', 'IoNewspaper', 'IoNewspaperOutline',
+  'IoJournal', 'IoJournalOutline', 'IoBookmark', 'IoBookmarkOutline',
+
+  // Tecnología
+  'IoBulb', 'IoBulbOutline', 'IoCellular', 'IoCellularOutline',
+  'IoDesktop', 'IoDesktopOutline', 'IoLaptop', 'IoLaptopOutline', 'IoTabletPortrait', 'IoTabletLandscape',
+  'IoPhonePortrait', 'IoPhoneLandscape', 'IoWatchOutline', 'IoHeadsetOutline', 'IoKeyboardOutline',
+
+  // Clima
+  'IoSunny', 'IoSunnyOutline', 'IoMoon', 'IoMoonOutline', 'IoCloud', 'IoCloudOutline',
+  'IoRainy', 'IoRainyOutline', 'IoSnow', 'IoSnowOutline', 'IoThunderstormOutline',
+  'IoPartlySunny', 'IoPartlySunnyOutline', 'IoCloudyNight', 'IoCloudyNightOutline',
+
+  // Naturaleza
+  'IoLeaf', 'IoLeafOutline', 'IoFlower', 'IoFlowerOutline',
+  'IoPaw', 'IoPawOutline', 'IoBug', 'IoFish', 'IoFishOutline',
+  'IoBonfire', 'IoBonfireOutline',
+
+  // Accesorios
+  'IoGlasses', 'IoGlassesOutline', 'IoShirt', 'IoShirtOutline', 'IoWatch',
+
+  // Compras y Dinero
+  'IoCart', 'IoCartOutline', 'IoStorefront', 'IoStorefrontOutline',
+  'IoCard', 'IoCardOutline', 'IoCash', 'IoCashOutline', 'IoPricetag', 'IoPricetagOutline',
+  'IoPricetags', 'IoPricetagsOutline', 'IoWallet', 'IoWalletOutline',
+
+  // Lugares
+  'IoHome', 'IoHomeOutline', 'IoBusiness', 'IoBusinessOutline', 'IoRestaurantOutline', 'IoBed', 'IoBedOutline',
+
+  // Salud
+  'IoBandage', 'IoBandageOutline', 'IoMedkit', 'IoMedkitOutline', 'IoPulse', 'IoPulseOutline', 'IoWater', 'IoWaterOutline',
+
+  // Ubicación y Mapas
+  'IoGlobe', 'IoGlobeOutline', 'IoEarth', 'IoEarthOutline', 'IoPin', 'IoPinOutline',
+  'IoLocation', 'IoLocationOutline', 'IoCompass', 'IoCompassOutline',
+  'IoMap', 'IoMapOutline', 'IoNavigate', 'IoNavigateOutline',
+
+  // Espacio
+  'IoPlanet', 'IoPlanetOutline', 'IoAperture', 'IoApertureOutline',
+
+  // Herramientas
+  'IoMagnet', 'IoMagnetOutline', 'IoHammer', 'IoHammerOutline', 'IoBuild', 'IoBuildOutline',
+  'IoConstruct', 'IoConstructOutline', 'IoCog', 'IoCogOutline',
+  'IoSettings', 'IoSettingsOutline', 'IoOptions', 'IoOptionsOutline',
+
+  // Tiempo
+  'IoTime', 'IoTimeOutline', 'IoTimer', 'IoTimerOutline', 'IoStopwatch', 'IoStopwatchOutline',
+  'IoAlarm', 'IoAlarmOutline', 'IoHourglass', 'IoHourglassOutline',
+
+  // Seguridad
+  'IoLockClosed', 'IoLockClosedOutline', 'IoLockOpen', 'IoLockOpenOutline',
+  'IoKey', 'IoKeyOutline', 'IoShield', 'IoShieldOutline',
+  'IoShieldCheckmark', 'IoShieldCheckmarkOutline', 'IoFingerPrint', 'IoFingerPrintOutline',
+
+  // Documentos
+  'IoDocument', 'IoDocumentOutline', 'IoDocumentText', 'IoDocumentTextOutline',
+  'IoFolder', 'IoFolderOutline', 'IoFolderOpen', 'IoFolderOpenOutline',
+  'IoArchive', 'IoArchiveOutline', 'IoClipboard', 'IoClipboardOutline',
+
+  // Media
+  'IoPlayOutline', 'IoPlayCircle', 'IoPlayCircleOutline', 'IoPause', 'IoPauseOutline',
+  'IoStop', 'IoStopOutline', 'IoPlaySkipForward', 'IoPlaySkipBackward',
+  'IoPlayBack', 'IoPlayForward', 'IoReload', 'IoReloadOutline', 'IoShuffle', 'IoShuffleOutline',
+
+  // Acciones
+  'IoAdd', 'IoAddOutline', 'IoRemove', 'IoRemoveOutline', 'IoClose', 'IoCloseOutline',
+  'IoCheckmark', 'IoCheckmarkOutline', 'IoCheckmarkDone', 'IoCheckmarkDoneOutline',
+  'IoSave', 'IoSaveOutline', 'IoTrash', 'IoTrashOutline',
+
+  // Direcciones
+  'IoArrowUp', 'IoArrowUpOutline', 'IoArrowDown', 'IoArrowDownOutline',
+  'IoArrowBack', 'IoArrowBackOutline', 'IoArrowForward', 'IoArrowForwardOutline',
+  'IoChevronUp', 'IoChevronDown', 'IoChevronBack', 'IoChevronForward',
+
+  // Extras
+  'IoEye', 'IoEyeOutline', 'IoEyeOff', 'IoEyeOffOutline', 'IoSearch', 'IoSearchOutline',
+  'IoFilter', 'IoFilterOutline', 'IoFunnel', 'IoFunnelOutline', 'IoGrid', 'IoGridOutline',
+  'IoList', 'IoListOutline', 'IoMenu', 'IoMenuOutline', 'IoEllipsisVertical', 'IoEllipsisHorizontal',
+  'IoNotifications', 'IoNotificationsOutline', 'IoWarning', 'IoWarningOutline',
+  'IoAlert', 'IoAlertOutline', 'IoInformation', 'IoInformationOutline',
+  'IoHelp', 'IoHelpOutline', 'IoShapes', 'IoShapesOutline',
+  'IoExtensionPuzzle', 'IoExtensionPuzzleOutline', 'IoCube', 'IoCubeOutline',
+  'IoGitBranch', 'IoGitBranchOutline', 'IoCode', 'IoCodeOutline',
+  'IoTerminal', 'IoTerminalOutline', 'IoBugOutline',
+  'IoSkull', 'IoSkullOutline', 'IoFootsteps', 'IoFootstepsOutline',
 ];
 
 // Convertir nombre de React Icons a nombre de Ionicons
@@ -166,6 +205,11 @@ export default function IconPicker({
         left: rect.left,
         width: rect.width,
       });
+
+      // Asegurar que el input mantenga el foco después de abrir el dropdown
+      requestAnimationFrame(() => {
+        inputRef.current?.focus();
+      });
     }
   }, [isOpen]);
 
@@ -200,7 +244,10 @@ export default function IconPicker({
     onChange(val);
     setSearchTerm(val);
     if (!isOpen && val.length > 0) {
-      setIsOpen(true);
+      // Abrir dropdown sin perder el foco
+      requestAnimationFrame(() => {
+        setIsOpen(true);
+      });
     }
   };
 
@@ -285,13 +332,20 @@ export default function IconPicker({
           {/* Backdrop */}
           <div
             className="fixed inset-0 bg-black/20 z-99999"
-            onClick={() => setIsOpen(false)}
+            onMouseDown={(e) => {
+              e.stopPropagation();
+              setIsOpen(false);
+            }}
             onWheel={(e) => e.preventDefault()}
           />
 
           {/* Icon Grid Dropdown */}
           <div
             className="fixed z-100000 bg-bg-secondary border border-border rounded-xl shadow-2xl shadow-black/50 p-4 max-h-96 overflow-y-auto"
+            onMouseDown={(e) => {
+              // Evitar que el backdrop cierre el dropdown cuando se hace click en él
+              e.stopPropagation();
+            }}
             style={{
               top: `${dropdownPosition.top}px`,
               left: `${dropdownPosition.left}px`,

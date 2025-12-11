@@ -1,0 +1,3 @@
+filter_label,sort_order,is_active,title_es,title_en,icon,gradient_colors,estimated_time,is_premium,subtitle_es,subtitle_en,description_es,description_en,intensity_es,intensity_en
+personal_growth,1,true,Conexión Profunda,Deep Connection,heart,#EC4899|#F472B6,15 min,false,Explora emociones y vínculos,Explore emotions and bonds,Ejercicio para profundizar en la conexión emocional con alguien importante,Exercise to deepen emotional connection with someone important,MEDIUM,MEDIUM,
+relationships,2,true,Encuentro Contigo,Meet Yourself,sparkles,#8B5CF6|#6366F1,20 min,true,Reflexiona sobre tu esencia,Reflect on your essence,Actividad para reconocer fortalezas y áreas de crecimiento personal,Activity to identify strengths and personal growth areas,HIGH,HIGH,

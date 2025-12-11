@@ -10,7 +10,7 @@ import ConfirmModal from '@/components/ui/ConfirmModal';
 import SuccessModal from '@/components/ui/SuccessModal';
 import Input from '@/components/ui/Input';
 import Button from '@/components/ui/Button';
-import IconPicker from '@/components/ui/IconPicker';
+import EmojiOrIconPicker from '@/components/ui/EmojiOrIconPicker';
 import Toast from '@/components/ui/Toast';
 
 interface DeepTalkQuestion {
@@ -77,20 +77,12 @@ const getIonIcon = (iconName: string | null) => {
 
 const LANGUAGE_NAMES: Record<string, string> = {
   es: 'Español',
-  en: 'Inglés',
-  fr: 'Francés',
-  it: 'Italiano',
-  pt: 'Portugués',
-  de: 'Alemán',
+  en: 'Inglés'
 };
 
 const LANGUAGE_FLAGS: Record<string, string> = {
   es: '🇪🇸',
-  en: '🇬🇧',
-  fr: '🇫🇷',
-  it: '🇮🇹',
-  pt: '🇧🇷',
-  de: '🇩🇪',
+  en: '🇬🇧'
 };
 
 export default function DeepTalkQuestionsPage({ params }: PageProps) {
@@ -239,7 +231,7 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
     });
 
     // Calcular idiomas disponibles para agregar
-    const allLanguages = ['es', 'en', 'fr', 'it', 'pt', 'de'];
+    const allLanguages = ['es', 'en'];
     const existingLanguages = questionsForOrder.map((q) => q.language_code);
     const languagesToAdd = allLanguages.filter((lang) => !existingLanguages.includes(lang));
 
@@ -377,8 +369,8 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
       for (const lang of questionsToUpdate) {
         const questionData = editingQuestions[lang];
 
-        const { error } = await supabase
-          .from('deep_talk_questions')
+        const { error } = await (supabase
+          .from('deep_talk_questions') as any)
           .update({
             question: questionData.question,
             icon: editingIcon || null,
@@ -391,6 +383,27 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
 
       // Insertar nuevas traducciones
       if (questionsToInsert.length > 0) {
+        // Recorrer los sort_order existentes dentro de este deep_talk
+        const { data: existingQuestions } = await supabase
+          .from('deep_talk_questions')
+          .select('id, sort_order')
+          .eq('deep_talk_id', deepTalkId)
+          .gte('sort_order', selectedSortOrder)
+          .order('sort_order', { ascending: false });
+
+        // Actualizar cada uno incrementando su sort_order en 1
+        if (existingQuestions && existingQuestions.length > 0) {
+          for (const existing of existingQuestions) {
+            const newSortOrder = (existing as { id: string; sort_order: number }).sort_order + 1;
+            const existingId = (existing as { id: string; sort_order: number }).id;
+
+            await supabase
+              .from('deep_talk_questions')
+              .update({ sort_order: newSortOrder } as any)
+              .eq('id', existingId);
+          }
+        }
+
         const newQuestions = questionsToInsert.map((q) => ({
           deep_talk_id: deepTalkId,
           language_code: q.language_code,
@@ -402,7 +415,7 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
 
         const { error: insertError } = await supabase
           .from('deep_talk_questions')
-          .insert(newQuestions);
+          .insert(newQuestions as any);
 
         if (insertError) throw insertError;
       }
@@ -656,7 +669,9 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
         is_active: newIsActive,
       }));
 
-      const { error } = await supabase.from('deep_talk_questions').insert(questionsToInsert);
+      const { error } = await (supabase
+        .from('deep_talk_questions') as any)
+        .insert(questionsToInsert);
 
       if (error) throw error;
 
@@ -683,10 +698,10 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-bg-primary flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-12 h-12 border-4 border-brand-purple/30 border-t-brand-purple rounded-full animate-spin" />
-          <p className="text-text-secondary">Cargando temas profundos...</p>
+      <div className="min-h-screen bg-[#1A1A1A] flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 mx-auto mb-4 border-4 border-[#BDF522]/30 border-t-[#BDF522] rounded-full animate-spin"></div>
+          <p className="text-[#999999]">Cargando temas profundos...</p>
         </div>
       </div>
     );
@@ -694,8 +709,8 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
 
   if (!deepTalk || !filter) {
     return (
-      <div className="min-h-screen bg-bg-primary flex items-center justify-center">
-        <p className="text-text-secondary">No se encontró la información</p>
+      <div className="min-h-screen bg-[#1A1A1A] flex items-center justify-center">
+        <p className="text-[#999999]">No se encontró la información</p>
       </div>
     );
   }
@@ -739,27 +754,52 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
   const inactiveQuestions = totalQuestions - activeQuestions;
 
   return (
-    <div className="min-h-screen bg-bg-primary">
+    <div className="min-h-screen bg-[#1A1A1A] relative overflow-hidden">
+      {/* Formas decorativas de fondo */}
+      <div className="absolute top-0 left-0 w-full pointer-events-none opacity-15">
+        <Image
+          src="/resources/top-shapes.png"
+          alt=""
+          width={1920}
+          height={300}
+          className="w-full h-auto"
+          priority
+        />
+      </div>
+      <div className="absolute bottom-0 left-0 w-full pointer-events-none opacity-15">
+        <Image
+          src="/resources/bottom-shapes.png"
+          alt=""
+          width={1920}
+          height={300}
+          className="w-full h-auto"
+          priority
+        />
+      </div>
+
+      <div className="relative z-10">
       {/* Header */}
-      <header className="bg-bg-secondary/80 backdrop-blur-sm border-b border-border sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+      <header className="bg-[#2A2A2A]/80 backdrop-blur-sm border-b border-[#333333] sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <div className="flex items-center justify-between h-20">
             <div className="flex items-center gap-4">
               <Link href="/" className="flex items-center hover:opacity-80 transition-opacity">
-                <Image
-                  src="/logos/ChallengeMe-05.png"
-                  alt="ChallengeMe"
-                  width={40}
-                  height={40}
-                  className="object-contain"
-                />
+                <div className="relative w-14 h-14 flex items-center justify-center">
+                  <Image
+                    src="/logos/ChallengeMe-05.png"
+                    alt="ChallengeMe"
+                    width={56}
+                    height={56}
+                    className="object-contain"
+                  />
+                </div>
               </Link>
               <Link
                 href={`/deep-talks/categories/${categoryId}/deep-talks`}
-                className="w-10 h-10 rounded-xl bg-bg-tertiary hover:bg-border border border-border flex items-center justify-center transition-colors"
+                className="w-10 h-10 rounded-xl bg-[#1A1A1A] hover:bg-[#333333] border border-[#333333] flex items-center justify-center transition-colors"
               >
                 <svg
-                  className="w-5 h-5 text-text-primary"
+                  className="w-5 h-5 text-white"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -772,6 +812,7 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
                   />
                 </svg>
               </Link>
+              <div className="h-10 w-px bg-[#333333]"></div>
               <div className="flex items-center gap-3">
                 <div
                   className="w-12 h-12 rounded-xl flex items-center justify-center"
@@ -786,8 +827,8 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
                   )}
                 </div>
                 <div>
-                  <h1 className="text-lg font-bold text-text-primary">{translation.title}</h1>
-                  <p className="text-xs text-text-secondary">Temas Profundos</p>
+                  <h1 className="text-xl font-bold text-white tracking-tight">{translation.title}</h1>
+                  <p className="text-xs text-[#999999] font-medium">Temas Profundos</p>
                 </div>
               </div>
             </div>
@@ -795,7 +836,7 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
               <button
                 onClick={handleOpenCreateModal}
                 disabled={isProcessing}
-                className="px-4 py-2 bg-brand-purple hover:bg-brand-purple/90 text-white rounded-xl font-medium transition-all duration-200 flex items-center gap-2 shadow-lg shadow-brand-purple/20 disabled:opacity-50 disabled:cursor-not-allowed"
+                className="px-5 py-2.5 bg-[#BDF522] hover:bg-[#BDF522]/90 text-black font-semibold rounded-xl transition-all duration-200 flex items-center gap-2 shadow-lg shadow-[#BDF522]/20 disabled:opacity-50 disabled:cursor-not-allowed"
               >
                 <svg
                   className="w-5 h-5"
@@ -810,11 +851,12 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
                     d="M12 4v16m8-8H4"
                   />
                 </svg>
-                Nueva Pregunta
+                <span className="hidden sm:inline">Nueva Pregunta</span>
+                <span className="sm:hidden">Nueva</span>
               </button>
               <Link
                 href={`/deep-talks/categories/${categoryId}/deep-talks/${deepTalkId}`}
-                className="px-4 py-2 bg-brand-blue/10 hover:bg-brand-blue/20 border border-brand-blue/30 text-brand-blue rounded-xl font-medium transition-all duration-200 flex items-center gap-2"
+                className="px-4 py-2.5 bg-[#2A2A2A] hover:bg-[#333333] border border-[#333333] hover:border-[#BDF522]/30 text-white rounded-xl font-medium transition-all duration-200 flex items-center gap-2"
               >
                 <svg
                   className="w-5 h-5"
@@ -829,7 +871,8 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
                     d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
                   />
                 </svg>
-                Editar Categoría
+                <span className="hidden sm:inline">Editar Categoría</span>
+                <span className="sm:hidden">Editar</span>
               </Link>
             </div>
           </div>
@@ -837,24 +880,24 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-6 lg:px-8 py-8">
         {/* Category Info Card */}
-        <div className="bg-bg-secondary/80 backdrop-blur-sm border border-border rounded-2xl p-6 mb-8 shadow-lg shadow-black/10">
+        <div className="bg-[#2A2A2A] border border-[#333333] rounded-2xl p-6 mb-8 shadow-lg shadow-black/20">
           <div className="flex items-start justify-between">
             <div className="flex-1">
               <div className="flex items-center gap-2 mb-3">
                 <span
                   className="px-3 py-1 text-sm rounded-lg font-medium border"
                   style={{
-                    backgroundColor: filter.color ? `${filter.color}20` : '#8B5CF620',
-                    borderColor: filter.color ? `${filter.color}50` : '#8B5CF650',
-                    color: filter.color || '#8B5CF6',
+                    backgroundColor: filter.color ? `${filter.color}20` : '#BDF52220',
+                    borderColor: filter.color ? `${filter.color}50` : '#BDF52250',
+                    color: filter.color || '#BDF522',
                   }}
                 >
                   {filterTranslation?.name || filter.label}
                 </span>
                 {deepTalk.estimated_time && (
-                  <span className="text-sm text-text-tertiary">
+                  <span className="text-sm text-[#999999]">
                     ⏱️ {deepTalk.estimated_time}
                   </span>
                 )}
@@ -866,98 +909,39 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
                   </span>
                 )}
               </div>
-              <h2 className="text-2xl font-bold text-text-primary mb-2">{translation.title}</h2>
+              <h2 className="text-2xl font-bold text-white mb-2">{translation.title}</h2>
               {translation.subtitle && (
-                <p className="text-text-secondary mb-3">{translation.subtitle}</p>
+                <p className="text-[#CCCCCC] mb-3">{translation.subtitle}</p>
               )}
               {translation.description && (
-                <p className="text-sm text-text-tertiary">{translation.description}</p>
+                <p className="text-sm text-[#999999]">{translation.description}</p>
               )}
             </div>
           </div>
         </div>
 
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-gradient-to-br from-brand-purple/10 to-brand-purple/5 border border-brand-purple/20 rounded-2xl p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-text-secondary mb-1">Total Preguntas</p>
-                <p className="text-3xl font-bold text-text-primary">{totalQuestions}</p>
-              </div>
-              <div className="w-12 h-12 rounded-xl bg-brand-purple/20 flex items-center justify-center">
-                <svg
-                  className="w-6 h-6 text-brand-purple"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-              </div>
-            </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-10">
+          <div className="text-center">
+            <div className="text-3xl font-bold text-[#BDF522] mb-2">{totalQuestions}</div>
+            <div className="text-sm text-[#999999]">Total Preguntas</div>
           </div>
-
-          <div className="bg-gradient-to-br from-green-500/10 to-green-500/5 border border-green-500/20 rounded-2xl p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-text-secondary mb-1">Activas</p>
-                <p className="text-3xl font-bold text-text-primary">{activeQuestions}</p>
-              </div>
-              <div className="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center">
-                <svg
-                  className="w-6 h-6 text-green-500"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-              </div>
-            </div>
+          <div className="text-center">
+            <div className="text-3xl font-bold text-[#BDF522] mb-2">{activeQuestions}</div>
+            <div className="text-sm text-[#999999]">Activas</div>
           </div>
-
-          <div className="bg-gradient-to-br from-gray-500/10 to-gray-500/5 border border-gray-500/20 rounded-2xl p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-text-secondary mb-1">Inactivas</p>
-                <p className="text-3xl font-bold text-text-primary">{inactiveQuestions}</p>
-              </div>
-              <div className="w-12 h-12 rounded-xl bg-gray-500/20 flex items-center justify-center">
-                <svg
-                  className="w-6 h-6 text-gray-500"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
-                  />
-                </svg>
-              </div>
-            </div>
+          <div className="text-center">
+            <div className="text-3xl font-bold text-[#999999] mb-2">{inactiveQuestions}</div>
+            <div className="text-sm text-[#999999]">Inactivas</div>
           </div>
         </div>
 
         {/* Filters */}
-        <div className="bg-bg-secondary/80 backdrop-blur-sm border border-border rounded-2xl p-6 mb-8 shadow-lg shadow-black/10">
+        <div className="bg-[#2A2A2A] border border-[#333333] rounded-2xl p-6 mb-8 shadow-lg shadow-black/20">
           <div className="flex flex-col gap-4">
             {/* Language Selector */}
             <div className="flex-1">
-              <label className="block text-sm font-medium text-text-primary mb-2">
+              <label className="block text-sm font-medium text-white mb-2">
                 Seleccionar Idioma
               </label>
               <div className="flex flex-wrap gap-2">
@@ -967,8 +951,8 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
                     onClick={() => setSelectedLanguage(lang)}
                     className={`px-4 py-2 rounded-lg font-medium transition-all duration-200 flex items-center gap-2 ${
                       selectedLanguage === lang
-                        ? 'bg-brand-purple text-white shadow-lg shadow-brand-purple/20'
-                        : 'bg-bg-tertiary text-text-primary border border-border hover:border-brand-purple/50'
+                        ? 'bg-[#BDF522] text-black shadow-lg shadow-[#BDF522]/20'
+                        : 'bg-[#1A1A1A] text-white border border-[#333333] hover:border-[#BDF522]/50'
                     }`}
                   >
                     <span className="text-lg">{LANGUAGE_FLAGS[lang] || '🌐'}</span>
@@ -983,20 +967,20 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
 
         {/* Questions Header with Filters - Always visible */}
         <div className="flex items-center justify-between mb-6">
-          <h3 className="text-xl font-bold text-text-primary">
+          <h3 className="text-xl font-bold text-white">
             Preguntas ({filteredQuestions.length})
           </h3>
 
           <div className="flex items-center gap-4">
             {/* Active Filter Toggle */}
-            <div className="flex items-center gap-2 bg-bg-tertiary/80 border border-border rounded-lg p-1">
+            <div className="flex items-center gap-2 bg-[#1A1A1A] border border-[#333333] rounded-lg p-1">
               <button
                 type="button"
                 onClick={() => setQuestionFilterStatus('all')}
                 className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all duration-200 ${
                   questionFilterStatus === 'all'
-                    ? 'bg-brand-purple text-white shadow-md'
-                    : 'text-text-tertiary hover:text-text-primary'
+                    ? 'bg-[#BDF522] text-black shadow-md'
+                    : 'text-[#999999] hover:text-white'
                 }`}
               >
                 Todas
@@ -1006,8 +990,8 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
                 onClick={() => setQuestionFilterStatus('active')}
                 className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all duration-200 ${
                   questionFilterStatus === 'active'
-                    ? 'bg-success text-white shadow-md'
-                    : 'text-text-tertiary hover:text-text-primary'
+                    ? 'bg-green-500 text-white shadow-md'
+                    : 'text-[#999999] hover:text-white'
                 }`}
               >
                 Activas
@@ -1018,7 +1002,7 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
                 className={`px-3 py-1.5 text-xs font-semibold rounded-md transition-all duration-200 ${
                   questionFilterStatus === 'inactive'
                     ? 'bg-red-500 text-white shadow-md'
-                    : 'text-text-tertiary hover:text-text-primary'
+                    : 'text-[#999999] hover:text-white'
                 }`}
               >
                 Inactivas
@@ -1032,10 +1016,10 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
                 placeholder="Buscar pregunta..."
                 value={searchTerm}
                 onChange={(e) => setSearchTerm(e.target.value)}
-                className="w-full px-4 py-2 pl-10 bg-bg-tertiary border border-border rounded-xl text-text-primary placeholder:text-text-tertiary focus:outline-none focus:border-brand-purple/50 transition-all duration-200"
+                className="w-full px-4 py-2 pl-10 bg-[#1A1A1A] border border-[#333333] rounded-xl text-white placeholder:text-[#999999] focus:outline-none focus:border-[#BDF522]/50 transition-all duration-200"
               />
               <svg
-                className="w-5 h-5 text-text-tertiary absolute left-3 top-1/2 -translate-y-1/2"
+                className="w-5 h-5 text-[#999999] absolute left-3 top-1/2 -translate-y-1/2"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -1053,10 +1037,10 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
 
         {/* Questions List */}
         {filteredQuestions.length === 0 ? (
-          <div className="bg-bg-secondary/50 border border-border rounded-2xl p-12 text-center">
-            <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-brand-purple/20 to-brand-purple/5 border border-brand-purple/30 flex items-center justify-center">
+          <div className="bg-[#2A2A2A] border border-[#333333] rounded-2xl p-12 text-center shadow-lg shadow-black/20">
+            <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-[#BDF522]/20 to-[#BDF522]/5 border border-[#BDF522]/30 flex items-center justify-center">
               <svg
-                className="w-10 h-10 text-brand-purple"
+                className="w-10 h-10 text-[#BDF522]"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -1069,10 +1053,10 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
                 />
               </svg>
             </div>
-            <h3 className="text-lg font-semibold text-text-primary mb-2">
+            <h3 className="text-2xl font-bold text-white mb-3">
               No hay preguntas{questionFilterStatus === 'active' ? ' activas' : questionFilterStatus === 'inactive' ? ' inactivas' : ''} para este idioma
             </h3>
-            <p className="text-text-secondary">
+            <p className="text-[#CCCCCC] max-w-md mx-auto leading-relaxed">
               {questionFilterStatus !== 'all'
                 ? 'Intenta cambiar el filtro para ver más preguntas'
                 : 'Edita la categoría para agregar preguntas'}
@@ -1086,7 +1070,7 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
                 return (
                   <div
                     key={question.id}
-                    className={`bg-bg-secondary/80 backdrop-blur-sm border border-border rounded-xl p-5 hover:border-brand-purple/50 transition-all duration-200 hover:shadow-lg hover:shadow-brand-purple/10 group ${
+                    className={`bg-[#2A2A2A] border border-[#333333] rounded-xl p-5 hover:border-[#BDF522]/50 transition-all duration-200 hover:shadow-lg hover:shadow-black/20 group ${
                       !question.is_active ? 'opacity-50 blur-[0.5px] grayscale' : ''
                     }`}
                   >
@@ -1108,7 +1092,7 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
                       {/* Question Content */}
                       <div className="flex-1 min-w-0">
                         <div className="flex items-start justify-between gap-3 mb-2">
-                          <p className="text-base text-text-primary font-medium leading-relaxed">
+                          <p className="text-base text-white font-medium leading-relaxed">
                             {question.question}
                           </p>
                           {!question.is_active && (
@@ -1117,7 +1101,7 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
                             </span>
                           )}
                         </div>
-                        <div className="flex items-center gap-3 text-xs text-text-tertiary mb-3">
+                        <div className="flex items-center gap-3 text-xs text-[#999999] mb-3">
                           <span>Orden: {question.sort_order}</span>
                           {question.icon && (
                             <span className="flex items-center gap-1">
@@ -1135,11 +1119,11 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
                         </div>
 
                         {/* Action Buttons */}
-                        <div className="flex items-center gap-2 pt-3 border-t border-border/50">
+                        <div className="flex items-center gap-2 pt-3 border-t border-[#333333]/50">
                           <button
                             onClick={() => handleEditClick(question.sort_order)}
                             disabled={isProcessing}
-                            className="flex-1 px-3 py-2 bg-brand-blue/10 hover:bg-brand-blue/20 border border-brand-blue/30 text-brand-blue rounded-lg text-xs font-medium transition-all duration-200 flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
+                            className="flex-1 px-3 py-2 bg-[#BDF522]/10 hover:bg-[#BDF522]/20 border border-[#BDF522]/30 text-[#BDF522] rounded-lg text-xs font-medium transition-all duration-200 flex items-center justify-center gap-1.5 disabled:opacity-50 disabled:cursor-not-allowed"
                           >
                             <svg className="w-3.5 h-3.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                               <path
@@ -1209,13 +1193,13 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
       {/* Modal de Edición */}
       {showEditModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-bg-secondary border border-border rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl my-8">
+          <div className="bg-[#2A2A2A] border border-[#333333] rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl my-8">
             {/* Header */}
-            <div className="sticky top-0 bg-bg-secondary border-b border-border p-6 z-10">
+            <div className="sticky top-0 bg-[#2A2A2A] border-b border-[#333333] p-6 z-10">
               <div className="flex items-center justify-between gap-4">
                 <div className="flex-1">
-                  <h2 className="text-xl font-bold text-text-primary">Editar Pregunta</h2>
-                  <p className="text-sm text-text-secondary mt-1">
+                  <h2 className="text-xl font-bold text-white">Editar Pregunta</h2>
+                  <p className="text-sm text-[#999999] mt-1">
                     Modifica la pregunta en todos los idiomas disponibles
                   </p>
                 </div>
@@ -1240,9 +1224,9 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
                   <button
                     onClick={() => setShowEditModal(false)}
                     disabled={isProcessing}
-                    className="w-10 h-10 rounded-xl bg-bg-tertiary hover:bg-border border border-border flex items-center justify-center transition-colors disabled:opacity-50"
+                    className="w-10 h-10 rounded-xl bg-[#1A1A1A] hover:bg-[#333333] border border-[#333333] flex items-center justify-center transition-colors disabled:opacity-50"
                   >
-                    <svg className="w-5 h-5 text-text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
@@ -1252,42 +1236,40 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
 
             {/* Content */}
             <div className="p-6 space-y-6">
-              {/* Icon and Active Status */}
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                <IconPicker
-                  label="Icono (opcional)"
-                  placeholder="Buscar ícono..."
-                  value={editingIcon}
-                  onChange={setEditingIcon}
-                  helperText="Icono que aparecerá en la pregunta"
-                />
+              {/* Icon */}
+              <EmojiOrIconPicker
+                label="Emoji o Icono (opcional)"
+                value={editingIcon}
+                onChange={setEditingIcon}
+                helperText="Emoji o icono que aparecerá en la pregunta"
+              />
 
-                <div>
-                  <label className="block text-sm font-medium text-text-primary mb-2">Estado</label>
-                  <div className="h-12 flex items-center">
-                    <label className="flex items-center gap-3 cursor-pointer">
-                      <input
-                        type="checkbox"
-                        checked={editingIsActive}
-                        onChange={(e) => setEditingIsActive(e.target.checked)}
-                        className="w-5 h-5 rounded border-border text-brand-purple focus:ring-2 focus:ring-brand-purple/50 bg-bg-tertiary"
-                      />
-                      <span className="text-sm text-text-primary font-medium">
-                        {editingIsActive ? 'Pregunta Activa' : 'Pregunta Inactiva'}
-                      </span>
-                    </label>
-                  </div>
+              {/* Active Status */}
+              <div>
+                <label className="block text-sm font-medium text-white mb-2">Estado</label>
+                <div className="h-12 flex items-center">
+                  <label className="flex items-center gap-3 cursor-pointer">
+                    <input
+                      type="checkbox"
+                      checked={editingIsActive}
+                      onChange={(e) => setEditingIsActive(e.target.checked)}
+                      className="w-5 h-5 rounded border-[#333333] text-[#BDF522] focus:ring-2 focus:ring-[#BDF522]/50 bg-[#1A1A1A]"
+                    />
+                    <span className="text-sm text-white font-medium">
+                      {editingIsActive ? 'Pregunta Activa' : 'Pregunta Inactiva'}
+                    </span>
+                  </label>
                 </div>
               </div>
 
               {/* Translations */}
               <div className="space-y-4">
-                <h3 className="text-lg font-bold text-text-primary">Traducciones</h3>
+                <h3 className="text-lg font-bold text-white">Traducciones</h3>
 
                 {/* Idiomas disponibles para agregar */}
                 {availableLanguagesToAdd.length > 0 && (
-                  <div className="bg-brand-purple/5 border border-brand-purple/20 rounded-xl p-4">
-                    <p className="text-sm font-medium text-text-primary mb-3">
+                  <div className="bg-[#BDF522]/5 border border-[#BDF522]/20 rounded-xl p-4">
+                    <p className="text-sm font-medium text-white mb-3">
                       Agregar traducción en otro idioma (opcional):
                     </p>
                     <div className="flex flex-wrap gap-2">
@@ -1296,11 +1278,11 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
                           key={lang}
                           onClick={() => handleAddLanguage(lang)}
                           disabled={isProcessing}
-                          className="px-3 py-2 bg-bg-secondary hover:bg-brand-purple/10 border border-border hover:border-brand-purple/50 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="px-3 py-2 bg-[#2A2A2A] hover:bg-[#BDF522]/10 border border-[#333333] hover:border-[#BDF522]/50 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <span className="text-lg">{LANGUAGE_FLAGS[lang] || '🌐'}</span>
-                          <span className="text-text-primary">{LANGUAGE_NAMES[lang] || lang.toUpperCase()}</span>
-                          <svg className="w-4 h-4 text-brand-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <span className="text-white">{LANGUAGE_NAMES[lang] || lang.toUpperCase()}</span>
+                          <svg className="w-4 h-4 text-[#BDF522]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                           </svg>
                         </button>
@@ -1314,11 +1296,11 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
                   const isNewLanguage = !editingQuestions[lang]?.id;
 
                   return (
-                    <div key={lang} className="bg-bg-tertiary border border-border rounded-xl p-4">
+                    <div key={lang} className="bg-[#1A1A1A] border border-[#333333] rounded-xl p-4">
                       <div className="flex items-center justify-between mb-3">
                         <div className="flex items-center gap-2">
                           <span className="text-2xl">{LANGUAGE_FLAGS[lang] || '🌐'}</span>
-                          <span className="text-sm font-bold text-text-primary">
+                          <span className="text-sm font-bold text-white">
                             {LANGUAGE_NAMES[lang] || lang.toUpperCase()}
                           </span>
                           {isNewLanguage && (
@@ -1362,7 +1344,7 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
             </div>
 
             {/* Footer */}
-            <div className="sticky bottom-0 bg-bg-secondary border-t border-border p-6 flex items-center justify-end gap-3">
+            <div className="sticky bottom-0 bg-[#2A2A2A] border-t border-[#333333] p-6 flex items-center justify-end gap-3">
               <Button
                 type="button"
                 variant="ghost"
@@ -1382,13 +1364,13 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
       {/* Modal de Creación */}
       {showCreateModal && (
         <div className="fixed inset-0 bg-black/50 backdrop-blur-sm z-50 flex items-center justify-center p-4 overflow-y-auto">
-          <div className="bg-bg-secondary border border-border rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl my-8">
+          <div className="bg-[#2A2A2A] border border-[#333333] rounded-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto shadow-2xl my-8">
             {/* Header */}
-            <div className="sticky top-0 bg-bg-secondary border-b border-border p-6 z-10">
+            <div className="sticky top-0 bg-[#2A2A2A] border-b border-[#333333] p-6 z-10">
               <div className="flex items-center justify-between gap-4">
                 <div className="flex-1">
-                  <h2 className="text-xl font-bold text-text-primary">Crear Nueva Pregunta</h2>
-                  <p className="text-sm text-text-secondary mt-1">
+                  <h2 className="text-xl font-bold text-white">Crear Nueva Pregunta</h2>
+                  <p className="text-sm text-[#999999] mt-1">
                     Agrega una nueva pregunta en uno o más idiomas
                   </p>
                 </div>
@@ -1413,9 +1395,9 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
                   <button
                     onClick={() => setShowCreateModal(false)}
                     disabled={isProcessing}
-                    className="w-10 h-10 rounded-xl bg-bg-tertiary hover:bg-border border border-border flex items-center justify-center transition-colors disabled:opacity-50"
+                    className="w-10 h-10 rounded-xl bg-[#1A1A1A] hover:bg-[#333333] border border-[#333333] flex items-center justify-center transition-colors disabled:opacity-50"
                   >
-                    <svg className="w-5 h-5 text-text-primary" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                    <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
                     </svg>
                   </button>
@@ -1426,40 +1408,32 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
             {/* Content */}
             <div className="p-6 space-y-6">
               {/* Sort Order and Active Status */}
-              <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                 <div>
-                  <label className="block text-sm font-medium text-text-primary mb-2">Orden</label>
+                  <label className="block text-sm font-medium text-white mb-2">Orden</label>
                   <input
                     type="number"
                     min={0}
                     value={selectedSortOrder}
                     onChange={(e) => setSelectedSortOrder(parseInt(e.target.value) || 0)}
-                    className="w-full h-12 px-4 bg-bg-tertiary border border-border rounded-xl text-text-primary focus:outline-none focus:ring-2 focus:ring-brand-purple/50 focus:border-brand-purple"
+                    className="w-full h-12 px-4 bg-[#1A1A1A] border border-[#333333] rounded-xl text-white focus:outline-none focus:ring-2 focus:ring-[#BDF522]/50 focus:border-[#BDF522]"
                   />
-                  <p className="text-xs text-text-tertiary mt-1">
+                  <p className="text-xs text-[#999999] mt-1">
                     Total de preguntas: {Array.from(new Set(deepTalk.deep_talk_questions.map(q => q.sort_order))).length}
                   </p>
                 </div>
 
-                <IconPicker
-                  label="Icono (opcional)"
-                  placeholder="Buscar ícono..."
-                  value={newIcon}
-                  onChange={setNewIcon}
-                  helperText="Icono que aparecerá en la pregunta"
-                />
-
                 <div>
-                  <label className="block text-sm font-medium text-text-primary mb-2">Estado</label>
+                  <label className="block text-sm font-medium text-white mb-2">Estado</label>
                   <div className="h-12 flex items-center">
                     <label className="flex items-center gap-3 cursor-pointer">
                       <input
                         type="checkbox"
                         checked={newIsActive}
                         onChange={(e) => setNewIsActive(e.target.checked)}
-                        className="w-5 h-5 rounded border-border text-brand-purple focus:ring-2 focus:ring-brand-purple/50 bg-bg-tertiary"
+                        className="w-5 h-5 rounded border-[#333333] text-[#BDF522] focus:ring-2 focus:ring-[#BDF522]/50 bg-[#1A1A1A]"
                       />
-                      <span className="text-sm text-text-primary font-medium">
+                      <span className="text-sm text-white font-medium">
                         {newIsActive ? 'Pregunta Activa' : 'Pregunta Inactiva'}
                       </span>
                     </label>
@@ -1467,14 +1441,22 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
                 </div>
               </div>
 
+              {/* Icon */}
+              <EmojiOrIconPicker
+                label="Emoji o Icono (opcional)"
+                value={newIcon}
+                onChange={setNewIcon}
+                helperText="Emoji o icono que aparecerá en la pregunta"
+              />
+
               {/* Translations */}
               <div className="space-y-4">
-                <h3 className="text-lg font-bold text-text-primary">Traducciones</h3>
+                <h3 className="text-lg font-bold text-white">Traducciones</h3>
 
                 {/* Idiomas opcionales para agregar */}
                 {optionalLanguages.length > 0 && (
-                  <div className="bg-brand-purple/5 border border-brand-purple/20 rounded-xl p-4">
-                    <p className="text-sm font-medium text-text-primary mb-3">
+                  <div className="bg-[#BDF522]/5 border border-[#BDF522]/20 rounded-xl p-4">
+                    <p className="text-sm font-medium text-white mb-3">
                       Agregar traducción en otro idioma (opcional):
                     </p>
                     <div className="flex flex-wrap gap-2">
@@ -1483,11 +1465,11 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
                           key={lang}
                           onClick={() => handleAddOptionalLanguage(lang)}
                           disabled={isProcessing}
-                          className="px-3 py-2 bg-bg-secondary hover:bg-brand-purple/10 border border-border hover:border-brand-purple/50 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
+                          className="px-3 py-2 bg-[#2A2A2A] hover:bg-[#BDF522]/10 border border-[#333333] hover:border-[#BDF522]/50 rounded-lg text-sm font-medium transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           <span className="text-lg">{LANGUAGE_FLAGS[lang] || '🌐'}</span>
-                          <span className="text-text-primary">{LANGUAGE_NAMES[lang] || lang.toUpperCase()}</span>
-                          <svg className="w-4 h-4 text-brand-purple" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <span className="text-white">{LANGUAGE_NAMES[lang] || lang.toUpperCase()}</span>
+                          <svg className="w-4 h-4 text-[#BDF522]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
                             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 4v16m8-8H4" />
                           </svg>
                         </button>
@@ -1498,15 +1480,15 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
 
                 {/* Lista de traducciones */}
                 {Object.keys(newQuestions).sort().map((lang) => (
-                  <div key={lang} className="bg-bg-tertiary border border-border rounded-xl p-4">
+                  <div key={lang} className="bg-[#1A1A1A] border border-[#333333] rounded-xl p-4">
                     <div className="flex items-center justify-between mb-3">
                       <div className="flex items-center gap-2">
                         <span className="text-2xl">{LANGUAGE_FLAGS[lang] || '🌐'}</span>
-                        <span className="text-sm font-bold text-text-primary">
+                        <span className="text-sm font-bold text-white">
                           {LANGUAGE_NAMES[lang] || lang.toUpperCase()}
                         </span>
                         {lang === 'es' && (
-                          <span className="px-2 py-0.5 bg-brand-purple/20 text-brand-purple text-xs font-bold rounded border border-brand-purple/30">
+                          <span className="px-2 py-0.5 bg-[#BDF522]/20 text-[#BDF522] text-xs font-bold rounded border border-[#BDF522]/30">
                             REQUERIDO
                           </span>
                         )}
@@ -1550,7 +1532,7 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
             </div>
 
             {/* Footer */}
-            <div className="sticky bottom-0 bg-bg-secondary border-t border-border p-6 flex items-center justify-end gap-3">
+            <div className="sticky bottom-0 bg-[#2A2A2A] border-t border-[#333333] p-6 flex items-center justify-end gap-3">
               <Button
                 type="button"
                 variant="ghost"
@@ -1587,7 +1569,7 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
       <SuccessModal
         isOpen={showSuccessModal}
         onClose={() => setShowSuccessModal(false)}
-        title="¡Operación exitosa!"
+        title="¡Operación exitos!"
         message={successMessage}
       />
 
@@ -1599,6 +1581,7 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
           onClose={() => setToast(null)}
         />
       )}
+      </div>
     </div>
   );
 }

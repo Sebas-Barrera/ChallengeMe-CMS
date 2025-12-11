@@ -37,14 +37,19 @@ export default function EmojiOrIconPicker({
   // Verificar si es un icono válido de Ionicons
   const initialType = value && isValidIcon(value) ? 'icon' : 'emoji';
   const [selectedType, setSelectedType] = useState<'emoji' | 'icon'>(initialType);
+  const [isInitialized, setIsInitialized] = useState(false);
 
-  // Actualizar el tipo cuando cambia el valor (por ejemplo, al cargar un reto)
+  // Solo detectar el tipo automáticamente una vez al montar el componente
+  // NO cambiar el tipo mientras el usuario está escribiendo
   useEffect(() => {
-    if (value && value.trim() !== '') {
+    if (!isInitialized && value && value.trim() !== '') {
       const detectedType = isValidIcon(value) ? 'icon' : 'emoji';
       setSelectedType(detectedType);
+      setIsInitialized(true);
+    } else if (!isInitialized) {
+      setIsInitialized(true);
     }
-  }, [value]);
+  }, [value, isInitialized]);
 
   const handleTypeChange = (type: 'emoji' | 'icon') => {
     setSelectedType(type);

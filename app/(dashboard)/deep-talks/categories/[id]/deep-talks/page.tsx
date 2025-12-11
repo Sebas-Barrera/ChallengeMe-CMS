@@ -199,10 +199,10 @@ export default function DeepTalksListPage() {
 
   if (isLoading) {
     return (
-      <div className="min-h-screen bg-bg-primary flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-12 h-12 border-4 border-brand-purple/30 border-t-brand-purple rounded-full animate-spin" />
-          <p className="text-text-secondary">Cargando categorías...</p>
+      <div className="min-h-screen bg-[#1A1A1A] flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 mx-auto mb-4 border-4 border-[#BDF522]/30 border-t-[#BDF522] rounded-full animate-spin"></div>
+          <p className="text-[#999999]">Cargando categorías...</p>
         </div>
       </div>
     );
@@ -210,8 +210,8 @@ export default function DeepTalksListPage() {
 
   if (!filter) {
     return (
-      <div className="min-h-screen bg-bg-primary flex items-center justify-center">
-        <p className="text-text-secondary">Filtro no encontrado</p>
+      <div className="min-h-screen bg-[#1A1A1A] flex items-center justify-center">
+        <p className="text-[#999999]">Filtro no encontrado</p>
       </div>
     );
   }
@@ -219,27 +219,52 @@ export default function DeepTalksListPage() {
   const filterName = getTranslation(filter.deep_talk_categories_translations, 'es')?.name || filter.label;
 
   return (
-    <div className="min-h-screen bg-bg-primary">
+    <div className="min-h-screen bg-[#1A1A1A] relative overflow-hidden">
+      {/* Formas decorativas de fondo */}
+      <div className="absolute top-0 left-0 w-full pointer-events-none opacity-15">
+        <Image
+          src="/resources/top-shapes.png"
+          alt=""
+          width={1920}
+          height={300}
+          className="w-full h-auto"
+          priority
+        />
+      </div>
+      <div className="absolute bottom-0 left-0 w-full pointer-events-none opacity-15">
+        <Image
+          src="/resources/bottom-shapes.png"
+          alt=""
+          width={1920}
+          height={300}
+          className="w-full h-auto"
+          priority
+        />
+      </div>
+
+      <div className="relative z-10">
       {/* Header */}
-      <header className="bg-bg-secondary/80 backdrop-blur-sm border-b border-border sticky top-0 z-50">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+      <header className="bg-[#2A2A2A]/80 backdrop-blur-sm border-b border-[#333333] sticky top-0 z-50">
+        <div className="max-w-7xl mx-auto px-6 lg:px-8">
+          <div className="flex items-center justify-between h-20">
             <div className="flex items-center gap-4">
               <Link href="/" className="flex items-center hover:opacity-80 transition-opacity">
-                <Image
-                  src="/logos/ChallengeMe-05.png"
-                  alt="ChallengeMe"
-                  width={40}
-                  height={40}
-                  className="object-contain"
-                />
+                <div className="relative w-14 h-14 flex items-center justify-center">
+                  <Image
+                    src="/logos/ChallengeMe-05.png"
+                    alt="ChallengeMe"
+                    width={56}
+                    height={56}
+                    className="object-contain"
+                  />
+                </div>
               </Link>
               <Link
                 href="/deep-talks/categories"
-                className="w-10 h-10 rounded-xl bg-bg-tertiary hover:bg-border border border-border flex items-center justify-center transition-colors"
+                className="w-10 h-10 rounded-xl bg-[#1A1A1A] hover:bg-[#333333] border border-[#333333] flex items-center justify-center transition-colors"
               >
                 <svg
-                  className="w-5 h-5 text-text-primary"
+                  className="w-5 h-5 text-white"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -252,19 +277,20 @@ export default function DeepTalksListPage() {
                   />
                 </svg>
               </Link>
+              <div className="h-10 w-px bg-[#333333]"></div>
               <div className="flex items-center gap-3">
                 {filter.icon && (
                   <div
                     className="w-12 h-12 rounded-xl flex items-center justify-center border-2"
                     style={{
-                      backgroundColor: filter.color ? `${filter.color}20` : '#8B5CF620',
-                      borderColor: filter.color ? `${filter.color}50` : '#8B5CF650',
+                      backgroundColor: filter.color ? `${filter.color}20` : '#BDF52220',
+                      borderColor: filter.color ? `${filter.color}50` : '#BDF52250',
                     }}
                   >
                     {(() => {
                       const FilterIcon = getIonIcon(filter.icon);
                       return FilterIcon ? (
-                        <div style={{ color: filter.color || '#8B5CF6' }}>
+                        <div style={{ color: filter.color || '#BDF522' }}>
                           <FilterIcon className="w-6 h-6" />
                         </div>
                       ) : (
@@ -274,14 +300,14 @@ export default function DeepTalksListPage() {
                   </div>
                 )}
                 <div>
-                  <h1 className="text-lg font-bold text-text-primary">{filterName}</h1>
-                  <p className="text-xs text-text-secondary">Todas las Categorías</p>
+                  <h1 className="text-xl font-bold text-white tracking-tight">{filterName}</h1>
+                  <p className="text-xs text-[#999999] font-medium">Todas las Categorías</p>
                 </div>
               </div>
             </div>
             <Link
               href={`/deep-talks/categories/${categoryId}/deep-talks/new`}
-              className="px-4 py-2 bg-brand-purple hover:bg-brand-purple/90 text-white rounded-xl font-medium transition-all duration-200 flex items-center gap-2 hover:scale-105"
+              className="px-5 py-2.5 bg-[#BDF522] hover:bg-[#BDF522]/90 text-black font-semibold rounded-xl transition-all duration-200 flex items-center gap-2 shadow-lg shadow-[#BDF522]/20 hover:shadow-[#BDF522]/30"
             >
               <svg
                 className="w-5 h-5"
@@ -296,95 +322,37 @@ export default function DeepTalksListPage() {
                   d="M12 4v16m8-8H4"
                 />
               </svg>
-              Nueva Categoría
+              <span className="hidden sm:inline">Nueva Categoría</span>
+              <span className="sm:hidden">Nueva</span>
             </Link>
           </div>
         </div>
       </header>
 
       {/* Main Content */}
-      <main className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-7xl mx-auto px-6 lg:px-8 py-8">
         {/* Stats Cards */}
-        <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-          <div className="bg-gradient-to-br from-brand-purple/10 to-brand-purple/5 border border-brand-purple/20 rounded-2xl p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-text-secondary mb-1">Total Categorías</p>
-                <p className="text-3xl font-bold text-text-primary">{stats.total}</p>
-              </div>
-              <div className="w-12 h-12 rounded-xl bg-brand-purple/20 flex items-center justify-center">
-                <svg
-                  className="w-6 h-6 text-brand-purple"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M8 10h.01M12 10h.01M16 10h.01M9 16H5a2 2 0 01-2-2V6a2 2 0 012-2h14a2 2 0 012 2v8a2 2 0 01-2 2h-5l-5 5v-5z"
-                  />
-                </svg>
-              </div>
-            </div>
+        <div className="grid grid-cols-1 sm:grid-cols-3 gap-6 mb-10">
+          <div className="text-center">
+            <div className="text-3xl font-bold text-[#BDF522] mb-2">{stats.total}</div>
+            <div className="text-sm text-[#999999]">Total Categorías</div>
           </div>
-
-          <div className="bg-gradient-to-br from-green-500/10 to-green-500/5 border border-green-500/20 rounded-2xl p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-text-secondary mb-1">Activas</p>
-                <p className="text-3xl font-bold text-text-primary">{stats.active}</p>
-              </div>
-              <div className="w-12 h-12 rounded-xl bg-green-500/20 flex items-center justify-center">
-                <svg
-                  className="w-6 h-6 text-green-500"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z"
-                  />
-                </svg>
-              </div>
-            </div>
+          <div className="text-center">
+            <div className="text-3xl font-bold text-[#BDF522] mb-2">{stats.active}</div>
+            <div className="text-sm text-[#999999]">Activas</div>
           </div>
-
-          <div className="bg-gradient-to-br from-gray-500/10 to-gray-500/5 border border-gray-500/20 rounded-2xl p-6">
-            <div className="flex items-center justify-between">
-              <div>
-                <p className="text-sm text-text-secondary mb-1">Inactivas</p>
-                <p className="text-3xl font-bold text-text-primary">{stats.inactive}</p>
-              </div>
-              <div className="w-12 h-12 rounded-xl bg-gray-500/20 flex items-center justify-center">
-                <svg
-                  className="w-6 h-6 text-gray-500"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M18.364 18.364A9 9 0 005.636 5.636m12.728 12.728A9 9 0 015.636 5.636m12.728 12.728L5.636 5.636"
-                  />
-                </svg>
-              </div>
-            </div>
+          <div className="text-center">
+            <div className="text-3xl font-bold text-[#999999] mb-2">{stats.inactive}</div>
+            <div className="text-sm text-[#999999]">Inactivas</div>
           </div>
         </div>
 
         {/* Deep Talks Grid */}
         {deepTalks.length === 0 ? (
-          <div className="bg-bg-secondary/50 border border-border rounded-2xl p-12 text-center">
-            <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-brand-purple/20 to-brand-purple/5 border border-brand-purple/30 flex items-center justify-center">
+          <div className="bg-[#2A2A2A] border border-[#333333] rounded-2xl p-12 text-center shadow-lg shadow-black/20">
+            <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-[#BDF522]/20 to-[#BDF522]/5 border border-[#BDF522]/30 flex items-center justify-center">
               <svg
-                className="w-10 h-10 text-brand-purple"
+                className="w-10 h-10 text-[#BDF522]"
                 fill="none"
                 stroke="currentColor"
                 viewBox="0 0 24 24"
@@ -397,15 +365,15 @@ export default function DeepTalksListPage() {
                 />
               </svg>
             </div>
-            <h3 className="text-lg font-semibold text-text-primary mb-2">
+            <h3 className="text-2xl font-bold text-white mb-3">
               No hay categorías todavía
             </h3>
-            <p className="text-text-secondary mb-6">
+            <p className="text-[#CCCCCC] mb-8 max-w-md mx-auto leading-relaxed">
               Comienza creando tu primera categoría de pláticas profundas
             </p>
             <Link
               href={`/deep-talks/categories/${categoryId}/deep-talks/new`}
-              className="inline-flex items-center gap-2 px-6 py-3 bg-brand-purple hover:bg-brand-purple/90 text-white rounded-xl font-medium transition-all duration-200 hover:scale-105"
+              className="inline-flex items-center gap-2 px-6 py-3 bg-[#BDF522] hover:bg-[#BDF522]/90 text-black font-semibold rounded-xl transition-all duration-200 shadow-lg shadow-[#BDF522]/20"
             >
               <svg
                 className="w-5 h-5"
@@ -424,7 +392,7 @@ export default function DeepTalksListPage() {
             </Link>
           </div>
         ) : (
-          <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
             {deepTalks.map((deepTalk) => {
               const translation = getTranslation(deepTalk.deep_talk_translations, 'es');
               const gradientColors = deepTalk.gradient_colors || ['#8B5CF6', '#6366F1'];
@@ -433,134 +401,102 @@ export default function DeepTalksListPage() {
               return (
                 <div
                   key={deepTalk.id}
-                  className="bg-bg-secondary/80 backdrop-blur-sm border border-border rounded-2xl p-6 hover:border-brand-purple/50 transition-all duration-200 hover:shadow-lg hover:shadow-brand-purple/10 group"
+                  className="group bg-[#2A2A2A] border border-[#333333] rounded-2xl overflow-hidden shadow-lg shadow-black/20 hover:border-[#BDF522]/30 transition-all duration-300"
                 >
-                  {/* Header with icon */}
-                  <div className="flex items-start justify-between mb-4">
-                    <div
-                      className="w-14 h-14 rounded-xl flex items-center justify-center"
-                      style={{
-                        background: `linear-gradient(135deg, ${gradientColors[0]}, ${gradientColors[1] || gradientColors[0]})`,
-                      }}
-                    >
+                  {/* Header con gradiente */}
+                  <div
+                    className="relative h-32 flex items-center justify-center overflow-hidden"
+                    style={{
+                      background: `linear-gradient(135deg, ${gradientColors[0]}, ${gradientColors[1] || gradientColors[0]})`,
+                    }}
+                  >
+                    {/* Pattern decorativo */}
+                    <div className="absolute inset-0 opacity-10">
+                      <div className="absolute top-0 left-0 w-32 h-32 bg-white rounded-full blur-2xl -translate-x-1/2 -translate-y-1/2"></div>
+                      <div className="absolute bottom-0 right-0 w-32 h-32 bg-black rounded-full blur-2xl translate-x-1/2 translate-y-1/2"></div>
+                    </div>
+
+                    {/* Icono */}
+                    <div className="relative z-10">
                       {DeepTalkIcon ? (
-                        <DeepTalkIcon className="w-7 h-7 text-white" />
+                        <DeepTalkIcon className="w-16 h-16 text-white drop-shadow-lg" />
                       ) : (
-                        <span className="text-2xl">{deepTalk.icon || '💬'}</span>
+                        <span className="text-5xl drop-shadow-lg">{deepTalk.icon || '💬'}</span>
                       )}
                     </div>
-                    <div className="flex items-center gap-2">
-                      {!deepTalk.is_active && (
-                        <span className="px-2 py-1 bg-gray-500/20 text-gray-400 text-xs rounded-lg border border-gray-500/30">
-                          Inactiva
+
+                    {/* Badge en el header */}
+                    {!deepTalk.is_active && (
+                      <div className="absolute top-3 right-3">
+                        <span className="px-2.5 py-1 bg-black/30 backdrop-blur-sm text-white/70 border border-white/20 rounded-lg text-xs font-bold">
+                          INACTIVA
                         </span>
-                      )}
-                    </div>
+                      </div>
+                    )}
                   </div>
 
-                  {/* Content */}
-                  <div className="mb-4">
-                    <h3 className="text-lg font-bold text-text-primary mb-1 line-clamp-2">
+                  {/* Contenido */}
+                  <div className="p-6">
+                    <h3 className="text-xl font-bold text-white mb-2 group-hover:text-[#BDF522] transition-colors line-clamp-2">
                       {translation?.title || 'Sin título'}
                     </h3>
                     {translation?.subtitle && (
-                      <p className="text-sm text-text-secondary line-clamp-2">
+                      <p className="text-sm text-[#CCCCCC] mb-4 line-clamp-2">
                         {translation.subtitle}
                       </p>
                     )}
-                  </div>
 
-                  {/* Metadata */}
-                  <div className="flex items-center gap-4 mb-4 text-xs text-text-tertiary">
-                    {deepTalk.estimated_time && (
-                      <div className="flex items-center gap-1">
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z"
-                          />
-                        </svg>
-                        {deepTalk.estimated_time} min
-                      </div>
-                    )}
-                    {translation?.intensity && (
-                      <div className="flex items-center gap-1">
-                        <span className="font-medium">
-                          {translation.intensity === 'LOW' && '🟢 Baja'}
-                          {translation.intensity === 'MEDIUM' && '🟡 Media'}
-                          {translation.intensity === 'HIGH' && '🔴 Alta'}
-                        </span>
-                      </div>
-                    )}
-                  </div>
+                    {/* Metadata */}
+                    <div className="flex items-center flex-wrap gap-3 mb-4 text-xs">
+                      {deepTalk.estimated_time && (
+                        <div className="flex items-center gap-1.5 text-[#999999]">
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4l3 3m6-3a9 9 0 11-18 0 9 9 0 0118 0z" />
+                          </svg>
+                          <span>{deepTalk.estimated_time} min</span>
+                        </div>
+                      )}
+                      {translation?.intensity && (
+                        <div className="flex items-center gap-1.5 text-[#999999]">
+                          <span className="font-medium">
+                            {translation.intensity === 'LOW' && '🟢 Baja'}
+                            {translation.intensity === 'MEDIUM' && '🟡 Media'}
+                            {translation.intensity === 'HIGH' && '🔴 Alta'}
+                          </span>
+                        </div>
+                      )}
+                    </div>
 
-                  {/* Actions */}
-                  <div className="flex flex-col gap-2 pt-4 border-t border-border/50">
-                    <button
-                      onClick={() => router.push(`/deep-talks/categories/${categoryId}/deep-talks/${deepTalk.id}/questions`)}
-                      className="w-full px-3 py-2 bg-brand-purple/10 hover:bg-brand-purple/20 border border-brand-purple/30 text-brand-purple rounded-lg text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2"
-                    >
-                      <svg
-                        className="w-4 h-4"
-                        fill="none"
-                        stroke="currentColor"
-                        viewBox="0 0 24 24"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth={2}
-                          d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z"
-                        />
-                      </svg>
-                      Temas Profundos
-                    </button>
-                    <div className="flex items-center gap-2">
+                    {/* Acciones */}
+                    <div className="flex flex-col gap-2">
                       <button
-                        onClick={() => router.push(`/deep-talks/categories/${categoryId}/deep-talks/${deepTalk.id}`)}
-                        className="flex-1 px-3 py-2 bg-brand-blue/10 hover:bg-brand-blue/20 border border-brand-blue/30 text-brand-blue rounded-lg text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2"
+                        onClick={() => router.push(`/deep-talks/categories/${categoryId}/deep-talks/${deepTalk.id}/questions`)}
+                        className="w-full px-4 py-2.5 bg-[#BDF522] hover:bg-[#BDF522]/90 text-black rounded-xl text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-[#BDF522]/20"
                       >
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
-                        >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z"
-                          />
+                        <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M8 12h.01M12 12h.01M16 12h.01M21 12c0 4.418-4.03 8-9 8a9.863 9.863 0 01-4.255-.949L3 20l1.395-3.72C3.512 15.042 3 13.574 3 12c0-4.418 4.03-8 9-8s9 3.582 9 8z" />
                         </svg>
-                        Editar
+                        Temas Profundos
                       </button>
-                      <button
-                        onClick={() => handleDeleteClick(deepTalk.id)}
-                        className="px-3 py-2 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-500 rounded-lg text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2"
-                      >
-                        <svg
-                          className="w-4 h-4"
-                          fill="none"
-                          stroke="currentColor"
-                          viewBox="0 0 24 24"
+                      <div className="flex items-center gap-2">
+                        <button
+                          onClick={() => router.push(`/deep-talks/categories/${categoryId}/deep-talks/${deepTalk.id}`)}
+                          className="flex-1 px-4 py-2.5 bg-[#2A2A2A] hover:bg-[#333333] border border-[#333333] hover:border-[#BDF522]/30 text-white rounded-xl text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2 shadow-lg shadow-black/30"
                         >
-                          <path
-                            strokeLinecap="round"
-                            strokeLinejoin="round"
-                            strokeWidth={2}
-                            d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"
-                          />
-                        </svg>
-                        Eliminar
-                      </button>
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                          </svg>
+                          Editar
+                        </button>
+                        <button
+                          onClick={() => handleDeleteClick(deepTalk.id)}
+                          className="px-4 py-2.5 bg-red-500/10 hover:bg-red-500/20 border border-red-500/30 text-red-500 rounded-xl text-sm font-medium transition-all duration-200 flex items-center justify-center gap-2"
+                        >
+                          <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
                     </div>
                   </div>
                 </div>
@@ -569,6 +505,7 @@ export default function DeepTalksListPage() {
           </div>
         )}
       </main>
+      </div>
 
       {/* Modal de confirmación de eliminación */}
       <ConfirmModal

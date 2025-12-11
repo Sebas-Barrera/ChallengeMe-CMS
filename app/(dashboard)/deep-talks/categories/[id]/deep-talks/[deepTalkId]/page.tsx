@@ -1,19 +1,19 @@
-'use client';
+"use client";
 
-import { useState, useEffect, use } from 'react';
-import { useRouter } from 'next/navigation';
-import Link from 'next/link';
-import Image from 'next/image';
-import { useAuth } from '@/contexts/AuthContext';
-import Input from '@/components/ui/Input';
-import Button from '@/components/ui/Button';
-import IconPicker from '@/components/ui/IconPicker';
-import LanguageSelector from '@/components/forms/LanguageSelector';
-import DeepTalkTranslationFields from '@/components/forms/DeepTalkTranslationFields';
-import DeepTalkQuestionsManager from '@/components/forms/DeepTalkQuestionsManager';
-import ConfirmModal from '@/components/ui/ConfirmModal';
-import SuccessModal from '@/components/ui/SuccessModal';
-import Toast from '@/components/ui/Toast';
+import { useState, useEffect, use } from "react";
+import { useRouter } from "next/navigation";
+import { notFound } from "next/navigation";
+import Link from "next/link";
+import Image from "next/image";
+import { useAuth } from "@/contexts/AuthContext";
+import Input from "@/components/ui/Input";
+import Button from "@/components/ui/Button";
+import IconPicker from "@/components/ui/IconPicker";
+import LanguageSelector from "@/components/forms/LanguageSelector";
+import DeepTalkTranslationFields from "@/components/forms/DeepTalkTranslationFields";
+import ConfirmModal from "@/components/ui/ConfirmModal";
+import SuccessModal from "@/components/ui/SuccessModal";
+import Toast from "@/components/ui/Toast";
 
 interface DeepTalkTranslation {
   language_code: string;
@@ -21,14 +21,6 @@ interface DeepTalkTranslation {
   subtitle: string;
   description: string;
   intensity: string;
-}
-
-interface DeepTalkQuestion {
-  question: string;
-  icon?: string | null;
-  sort_order: number;
-  is_active: boolean;
-  temp_id?: string;
 }
 
 interface FormData {
@@ -54,27 +46,30 @@ export default function EditDeepTalkPage({ params }: PageProps) {
   const [isFetching, setIsFetching] = useState(true);
   const [showConfirmModal, setShowConfirmModal] = useState(false);
   const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [originalSortOrder, setOriginalSortOrder] = useState<number>(0);
 
   // Idiomas seleccionados
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>([]);
 
   // Traducciones
-  const [translations, setTranslations] = useState<Record<string, DeepTalkTranslation>>({});
-
-  // Preguntas
-  const [questions, setQuestions] = useState<Record<string, DeepTalkQuestion[]>>({});
+  const [translations, setTranslations] = useState<
+    Record<string, DeepTalkTranslation>
+  >({});
 
   // Datos del formulario principal
   const [formData, setFormData] = useState<FormData>({
-    icon: 'chatbubbles',
-    gradient_colors: ['#8B5CF6', '#EC4899'],
-    estimated_time: '15-20 min',
+    icon: "chatbubbles",
+    gradient_colors: ["#8B5CF6", "#EC4899"],
+    estimated_time: "15-20 min",
     is_active: true,
     sort_order: 0,
   });
 
   // Estado para Toast
-  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' | 'warning' } | null>(null);
+  const [toast, setToast] = useState<{
+    message: string;
+    type: "success" | "error" | "info" | "warning";
+  } | null>(null);
 
   useEffect(() => {
     fetchDeepTalkData();
@@ -84,10 +79,11 @@ export default function EditDeepTalkPage({ params }: PageProps) {
     try {
       setIsFetching(true);
 
-      // Cargar Deep Talk con traducciones y preguntas
+      // Cargar Deep Talk con traducciones
       const { data: deepTalk, error: deepTalkError } = await supabase
-        .from('deep_talks')
-        .select(`
+        .from("deep_talks")
+        .select(
+          `
           id,
           deep_talk_category_id,
           icon,
@@ -101,29 +97,26 @@ export default function EditDeepTalkPage({ params }: PageProps) {
             subtitle,
             description,
             intensity
-          ),
-          deep_talk_questions (
-            language_code,
-            question,
-            icon,
-            sort_order,
-            is_active
           )
-        `)
-        .eq('id', deepTalkId)
+        `
+        )
+        .eq("id", deepTalkId)
         .single();
 
-      if (deepTalkError) {
-        throw new Error(deepTalkError.message);
+      if (deepTalkError || !deepTalk) {
+        // Redirigir a la página not-found que automáticamente llevará a /deep-talks/categories
+        notFound();
       }
 
       // Actualizar formData
+      const sortOrder = (deepTalk as any).sort_order || 0;
+      setOriginalSortOrder(sortOrder);
       setFormData({
-        icon: deepTalk.icon || 'chatbubbles',
-        gradient_colors: deepTalk.gradient_colors || ['#8B5CF6', '#EC4899'],
-        estimated_time: deepTalk.estimated_time || '15-20 min',
-        is_active: deepTalk.is_active || false,
-        sort_order: deepTalk.sort_order || 0,
+        icon: (deepTalk as any).icon || "chatbubbles",
+        gradient_colors: (deepTalk as any).gradient_colors || ["#8B5CF6", "#EC4899"],
+        estimated_time: (deepTalk as any).estimated_time || "15-20 min",
+        is_active: (deepTalk as any).is_active || false,
+        sort_order: sortOrder,
       });
 
       // Actualizar traducciones
@@ -133,10 +126,10 @@ export default function EditDeepTalkPage({ params }: PageProps) {
       deepTalk.deep_talk_translations.forEach((translation: any) => {
         translationsData[translation.language_code] = {
           language_code: translation.language_code,
-          title: translation.title || '',
-          subtitle: translation.subtitle || '',
-          description: translation.description || '',
-          intensity: translation.intensity || '',
+          title: translation.title || "",
+          subtitle: translation.subtitle || "",
+          description: translation.description || "",
+          intensity: translation.intensity || "",
         };
         if (!languages.includes(translation.language_code)) {
           languages.push(translation.language_code);
@@ -145,35 +138,10 @@ export default function EditDeepTalkPage({ params }: PageProps) {
 
       setTranslations(translationsData);
       setSelectedLanguages(languages);
-
-      // Actualizar preguntas
-      const questionsData: Record<string, DeepTalkQuestion[]> = {};
-
-      deepTalk.deep_talk_questions.forEach((question: any, index: number) => {
-        if (!questionsData[question.language_code]) {
-          questionsData[question.language_code] = [];
-        }
-        questionsData[question.language_code].push({
-          question: question.question,
-          icon: question.icon,
-          sort_order: question.sort_order,
-          is_active: question.is_active,
-          temp_id: `existing_${question.language_code}_${index}_${Date.now()}`,
-        });
-      });
-
-      // Ordenar preguntas por sort_order
-      Object.keys(questionsData).forEach((lang) => {
-        questionsData[lang].sort((a, b) => a.sort_order - b.sort_order);
-      });
-
-      setQuestions(questionsData);
     } catch (error) {
-      console.error('Error al cargar la categoría:', error);
-      setToast({ message: 'Error al cargar la categoría', type: 'error' });
-      setTimeout(() => {
-        router.push(`/deep-talks/categories/${categoryId}/deep-talks`);
-      }, 2000);
+      console.error("Error al cargar deep talk:", error);
+      // Si hay un error al cargar, redirigir a not-found
+      notFound();
     } finally {
       setIsFetching(false);
     }
@@ -196,10 +164,18 @@ export default function EditDeepTalkPage({ params }: PageProps) {
 
   const handleAutoTranslate = async (targetLanguage: string) => {
     try {
-      const esTranslation = translations['es'];
+      const esTranslation = translations["es"];
 
-      if (!esTranslation || !esTranslation.title || esTranslation.title.trim() === '') {
-        setToast({ message: 'Por favor, completa primero el título en español antes de auto-traducir', type: 'warning' });
+      if (
+        !esTranslation ||
+        !esTranslation.title ||
+        esTranslation.title.trim() === ""
+      ) {
+        setToast({
+          message:
+            "Por favor, completa primero el título en español antes de auto-traducir",
+          type: "warning",
+        });
         return;
       }
 
@@ -210,11 +186,11 @@ export default function EditDeepTalkPage({ params }: PageProps) {
         esTranslation.intensity,
       ].filter(Boolean);
 
-      const response = await fetch('/api/translate', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
+      const response = await fetch("/api/translate", {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
-          text: textsToTranslate.join('\n---\n'),
+          text: textsToTranslate.join("\n---\n"),
           targetLanguages: [targetLanguage],
         }),
       });
@@ -222,90 +198,31 @@ export default function EditDeepTalkPage({ params }: PageProps) {
       const result = await response.json();
 
       if (result.success && result.translations[targetLanguage]) {
-        const translatedTexts = result.translations[targetLanguage].split('\n---\n');
+        const translatedTexts =
+          result.translations[targetLanguage].split("\n---\n");
 
         setTranslations((prev) => ({
           ...prev,
           [targetLanguage]: {
             language_code: targetLanguage,
-            title: translatedTexts[0] || '',
-            subtitle: translatedTexts[1] || '',
-            description: translatedTexts[2] || '',
-            intensity: translatedTexts[3] || '',
+            title: translatedTexts[0] || "",
+            subtitle: translatedTexts[1] || "",
+            description: translatedTexts[2] || "",
+            intensity: translatedTexts[3] || "",
           },
         }));
       } else {
-        setToast({ message: 'Error al traducir. Intenta de nuevo.', type: 'error' });
-      }
-    } catch (error) {
-      console.error('Error al auto-traducir:', error);
-      setToast({ message: 'Error al traducir. Intenta de nuevo.', type: 'error' });
-    }
-  };
-
-  const handleQuestionsChange = (languageCode: string, newQuestions: DeepTalkQuestion[]) => {
-    setQuestions((prev) => ({
-      ...prev,
-      [languageCode]: newQuestions,
-    }));
-  };
-
-  const handleAutoTranslateQuestion = async (sourceLanguage: string, questionIndex: number) => {
-    try {
-      const sourceQuestion = questions[sourceLanguage]?.[questionIndex];
-
-      if (!sourceQuestion || !sourceQuestion.question.trim()) {
-        setToast({ message: 'No hay pregunta para traducir', type: 'warning' });
-        return;
-      }
-
-      const targetLanguages = selectedLanguages.filter((lang) => lang !== sourceLanguage);
-
-      for (const targetLang of targetLanguages) {
-        const response = await fetch('/api/translate', {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({
-            text: sourceQuestion.question,
-            targetLanguages: [targetLang],
-          }),
+        setToast({
+          message: "Error al traducir. Intenta de nuevo.",
+          type: "error",
         });
-
-        const result = await response.json();
-
-        if (result.success && result.translations[targetLang]) {
-          setQuestions((prev) => {
-            const targetQuestions = prev[targetLang] || [];
-            const updated = [...targetQuestions];
-
-            if (updated[questionIndex]) {
-              updated[questionIndex] = {
-                ...updated[questionIndex],
-                question: result.translations[targetLang],
-                icon: sourceQuestion.icon,
-              };
-            } else {
-              updated[questionIndex] = {
-                question: result.translations[targetLang],
-                icon: sourceQuestion.icon,
-                sort_order: questionIndex,
-                is_active: sourceQuestion.is_active,
-                temp_id: `temp_${Date.now()}_${Math.random()}`,
-              };
-            }
-
-            return {
-              ...prev,
-              [targetLang]: updated,
-            };
-          });
-        }
       }
-
-      setToast({ message: 'Pregunta traducida exitosamente a todos los idiomas', type: 'success' });
     } catch (error) {
-      console.error('Error al auto-traducir pregunta:', error);
-      setToast({ message: 'Error al traducir la pregunta. Intenta de nuevo.', type: 'error' });
+      console.error("Error al auto-traducir:", error);
+      setToast({
+        message: "Error al traducir. Intenta de nuevo.",
+        type: "error",
+      });
     }
   };
 
@@ -313,25 +230,20 @@ export default function EditDeepTalkPage({ params }: PageProps) {
     setSelectedLanguages(languages);
 
     const newTranslations = { ...translations };
-    const newQuestions = { ...questions };
 
     languages.forEach((lang) => {
       if (!newTranslations[lang]) {
         newTranslations[lang] = {
           language_code: lang,
-          title: '',
-          subtitle: '',
-          description: '',
-          intensity: '',
+          title: "",
+          subtitle: "",
+          description: "",
+          intensity: "",
         };
-      }
-      if (!newQuestions[lang]) {
-        newQuestions[lang] = [];
       }
     });
 
     setTranslations(newTranslations);
-    setQuestions(newQuestions);
   };
 
   const handleSubmit = (e: React.FormEvent) => {
@@ -339,21 +251,16 @@ export default function EditDeepTalkPage({ params }: PageProps) {
 
     // Validar traducciones
     const missingTitles = selectedLanguages.filter(
-      (lang) => !translations[lang]?.title || translations[lang].title.trim() === ''
+      (lang) =>
+        !translations[lang]?.title || translations[lang].title.trim() === ""
     );
 
     if (missingTitles.length > 0) {
-      setToast({ message: 'Por favor, completa el título para todos los idiomas seleccionados', type: 'warning' });
-      return;
-    }
-
-    // Validar preguntas
-    const missingQuestions = selectedLanguages.filter(
-      (lang) => !questions[lang] || questions[lang].length === 0
-    );
-
-    if (missingQuestions.length > 0) {
-      setToast({ message: 'Por favor, agrega al menos una pregunta para cada idioma', type: 'warning' });
+      setToast({
+        message:
+          "Por favor, completa el título para todos los idiomas seleccionados",
+        type: "warning",
+      });
       return;
     }
 
@@ -365,9 +272,34 @@ export default function EditDeepTalkPage({ params }: PageProps) {
     setIsLoading(true);
 
     try {
-      // 1. Actualizar el Deep Talk
-      const { error: deepTalkError } = await supabase
-        .from('deep_talks')
+      // 1. Si el sort_order cambió, recorrer los existentes
+      if (formData.sort_order !== originalSortOrder) {
+        // Obtener todos los deep_talks con sort_order >= al nuevo (excluyendo el actual)
+        const { data: existingDeepTalks } = await supabase
+          .from('deep_talks')
+          .select('id, sort_order')
+          .eq('deep_talk_category_id', categoryId)
+          .gte('sort_order', formData.sort_order)
+          .neq('id', deepTalkId)
+          .order('sort_order', { ascending: false });
+
+        // Actualizar cada uno incrementando su sort_order en 1
+        if (existingDeepTalks && existingDeepTalks.length > 0) {
+          for (const existing of existingDeepTalks) {
+            const newSortOrder = (existing as { id: string; sort_order: number }).sort_order + 1;
+            const existingId = (existing as { id: string; sort_order: number }).id;
+
+            await supabase
+              .from('deep_talks')
+              .update({ sort_order: newSortOrder } as any)
+              .eq('id', existingId);
+          }
+        }
+      }
+
+      // 2. Actualizar el Deep Talk
+      const { error: deepTalkError } = await (supabase
+        .from("deep_talks") as any)
         .update({
           deep_talk_category_id: categoryId,
           icon: formData.icon || null,
@@ -376,23 +308,23 @@ export default function EditDeepTalkPage({ params }: PageProps) {
           is_active: formData.is_active,
           sort_order: formData.sort_order,
         })
-        .eq('id', deepTalkId);
+        .eq("id", deepTalkId);
 
       if (deepTalkError) {
         throw new Error(deepTalkError.message);
       }
 
-      // 2. Eliminar traducciones existentes
+      // 3. Eliminar traducciones existentes
       const { error: deleteTranslationsError } = await supabase
-        .from('deep_talk_translations')
+        .from("deep_talk_translations")
         .delete()
-        .eq('deep_talk_id', deepTalkId);
+        .eq("deep_talk_id", deepTalkId);
 
       if (deleteTranslationsError) {
         throw new Error(deleteTranslationsError.message);
       }
 
-      // 3. Insertar nuevas traducciones
+      // 4. Insertar nuevas traducciones
       const translationsToInsert = selectedLanguages.map((lang) => ({
         deep_talk_id: deepTalkId,
         language_code: lang,
@@ -403,53 +335,23 @@ export default function EditDeepTalkPage({ params }: PageProps) {
       }));
 
       const { error: translationsError } = await supabase
-        .from('deep_talk_translations')
-        .insert(translationsToInsert);
+        .from("deep_talk_translations")
+        .insert(translationsToInsert as any);
 
       if (translationsError) {
         throw new Error(translationsError.message);
-      }
-
-      // 4. Eliminar preguntas existentes
-      const { error: deleteQuestionsError } = await supabase
-        .from('deep_talk_questions')
-        .delete()
-        .eq('deep_talk_id', deepTalkId);
-
-      if (deleteQuestionsError) {
-        throw new Error(deleteQuestionsError.message);
-      }
-
-      // 5. Insertar nuevas preguntas
-      const questionsToInsert = selectedLanguages.flatMap((lang) =>
-        questions[lang].map((q) => ({
-          deep_talk_id: deepTalkId,
-          language_code: lang,
-          question: q.question,
-          sort_order: q.sort_order,
-          is_active: q.is_active,
-          icon: q.icon || null,
-        }))
-      );
-
-      const { error: questionsError } = await supabase
-        .from('deep_talk_questions')
-        .insert(questionsToInsert);
-
-      if (questionsError) {
-        throw new Error(questionsError.message);
       }
 
       // Éxito - mostrar modal de éxito
       setShowConfirmModal(false);
       setShowSuccessModal(true);
     } catch (error) {
-      console.error('Error:', error);
+      console.error("Error:", error);
       const errorMessage =
         error instanceof Error
           ? error.message
-          : 'Error al actualizar la categoría. Por favor, intenta de nuevo.';
-      setToast({ message: errorMessage, type: 'error' });
+          : "Error al actualizar la categoría. Por favor, intenta de nuevo.";
+      setToast({ message: errorMessage, type: "error" });
     } finally {
       setIsLoading(false);
     }
@@ -457,37 +359,62 @@ export default function EditDeepTalkPage({ params }: PageProps) {
 
   if (isFetching) {
     return (
-      <div className="min-h-screen bg-bg-primary flex items-center justify-center">
-        <div className="flex flex-col items-center gap-3">
-          <div className="w-12 h-12 border-4 border-brand-purple/30 border-t-brand-purple rounded-full animate-spin" />
-          <p className="text-text-secondary">Cargando categoría...</p>
+      <div className="min-h-screen bg-[#1A1A1A] flex items-center justify-center">
+        <div className="text-center">
+          <div className="w-16 h-16 mx-auto mb-4 border-4 border-[#BDF522]/30 border-t-[#BDF522] rounded-full animate-spin"></div>
+          <p className="text-[#999999]">Cargando categoría...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-bg-primary">
+    <div className="min-h-screen bg-[#1A1A1A] relative overflow-hidden">
+      {/* Formas decorativas de fondo */}
+      <div className="absolute top-0 left-0 w-full pointer-events-none opacity-15">
+        <Image
+          src="/resources/top-shapes.png"
+          alt=""
+          width={1920}
+          height={300}
+          className="w-full h-auto"
+          priority
+        />
+      </div>
+      <div className="absolute bottom-0 left-0 w-full pointer-events-none opacity-15">
+        <Image
+          src="/resources/bottom-shapes.png"
+          alt=""
+          width={1920}
+          height={300}
+          className="w-full h-auto"
+          priority
+        />
+      </div>
+
+      <div className="relative z-10">
       {/* Header */}
-      <header className="bg-bg-secondary/80 backdrop-blur-sm border-b border-border sticky top-0 z-50">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+      <header className="bg-[#2A2A2A]/80 backdrop-blur-sm border-b border-[#333333] sticky top-0 z-50">
+        <div className="max-w-5xl mx-auto px-6 lg:px-8">
+          <div className="flex items-center justify-between h-20">
             <div className="flex items-center gap-4">
               <Link href="/" className="flex-shrink-0">
-                <Image
-                  src="/logos/ChallengeMe-05.png"
-                  alt="ChallengeMe"
-                  width={40}
-                  height={40}
-                  className="object-contain"
-                />
+                <div className="relative w-14 h-14 flex items-center justify-center">
+                  <Image
+                    src="/logos/ChallengeMe-05.png"
+                    alt="ChallengeMe"
+                    width={56}
+                    height={56}
+                    className="object-contain"
+                  />
+                </div>
               </Link>
               <Link
                 href={`/deep-talks/categories/${categoryId}/deep-talks`}
-                className="w-10 h-10 rounded-xl bg-bg-tertiary hover:bg-border border border-border flex items-center justify-center transition-colors"
+                className="w-10 h-10 rounded-xl bg-[#1A1A1A] hover:bg-[#333333] border border-[#333333] flex items-center justify-center transition-colors"
               >
                 <svg
-                  className="w-5 h-5 text-text-primary"
+                  className="w-5 h-5 text-white"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -500,9 +427,14 @@ export default function EditDeepTalkPage({ params }: PageProps) {
                   />
                 </svg>
               </Link>
+              <div className="h-10 w-px bg-[#333333]"></div>
               <div>
-                <h1 className="text-lg font-bold text-text-primary">Editar Categoría</h1>
-                <p className="text-xs text-text-secondary">Modificar categoría de Deep Talks</p>
+                <h1 className="text-lg font-bold text-white tracking-tight">
+                  Editar Categoría
+                </h1>
+                <p className="text-xs text-[#999999] font-medium">
+                  Modificar categoría de Deep Talks
+                </p>
               </div>
             </div>
           </div>
@@ -510,14 +442,14 @@ export default function EditDeepTalkPage({ params }: PageProps) {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-5xl mx-auto px-6 lg:px-8 py-8">
         <form onSubmit={handleSubmit} className="space-y-8">
           {/* Información General */}
-          <div className="bg-bg-secondary/80 backdrop-blur-sm border border-border rounded-2xl p-6 shadow-lg shadow-black/10">
+          <div className="bg-[#2A2A2A] border border-[#333333] rounded-2xl p-6 shadow-lg shadow-black/20">
             <div className="flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-purple/20 to-brand-purple/5 border border-brand-purple/30 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#BDF522]/20 to-[#BDF522]/5 border border-[#BDF522]/30 flex items-center justify-center">
                 <svg
-                  className="w-6 h-6 text-brand-purple"
+                  className="w-6 h-6 text-[#BDF522]"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -531,8 +463,12 @@ export default function EditDeepTalkPage({ params }: PageProps) {
                 </svg>
               </div>
               <div>
-                <h2 className="text-xl font-bold text-text-primary">Información General</h2>
-                <p className="text-sm text-text-secondary">Configuración básica de la categoría</p>
+                <h2 className="text-xl font-bold text-white tracking-tight">
+                  Información General
+                </h2>
+                <p className="text-sm text-[#999999]">
+                  Configuración básica de la categoría
+                </p>
               </div>
             </div>
 
@@ -550,12 +486,14 @@ export default function EditDeepTalkPage({ params }: PageProps) {
                 label="Tiempo Estimado"
                 placeholder="15-20 min"
                 value={formData.estimated_time}
-                onChange={(e) => setFormData({ ...formData, estimated_time: e.target.value })}
+                onChange={(e) =>
+                  setFormData({ ...formData, estimated_time: e.target.value })
+                }
                 helperText="Duración aproximada de la plática"
               />
 
               <div>
-                <label className="block text-sm font-medium text-text-primary mb-2">
+                <label className="block text-sm font-medium text-white mb-2">
                   Color Inicial del Gradiente
                 </label>
                 <input
@@ -564,15 +502,18 @@ export default function EditDeepTalkPage({ params }: PageProps) {
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      gradient_colors: [e.target.value, formData.gradient_colors[1]],
+                      gradient_colors: [
+                        e.target.value,
+                        formData.gradient_colors[1],
+                      ],
                     })
                   }
-                  className="w-full h-12 rounded-lg border-2 border-border cursor-pointer"
+                  className="w-full h-12 rounded-lg border-2 border-[#333333] cursor-pointer"
                 />
               </div>
 
               <div>
-                <label className="block text-sm font-medium text-text-primary mb-2">
+                <label className="block text-sm font-medium text-white mb-2">
                   Color Final del Gradiente
                 </label>
                 <input
@@ -581,10 +522,13 @@ export default function EditDeepTalkPage({ params }: PageProps) {
                   onChange={(e) =>
                     setFormData({
                       ...formData,
-                      gradient_colors: [formData.gradient_colors[0], e.target.value],
+                      gradient_colors: [
+                        formData.gradient_colors[0],
+                        e.target.value,
+                      ],
                     })
                   }
-                  className="w-full h-12 rounded-lg border-2 border-border cursor-pointer"
+                  className="w-full h-12 rounded-lg border-2 border-[#333333] cursor-pointer"
                 />
               </div>
 
@@ -594,7 +538,10 @@ export default function EditDeepTalkPage({ params }: PageProps) {
                 min={0}
                 value={formData.sort_order.toString()}
                 onChange={(e) =>
-                  setFormData({ ...formData, sort_order: parseInt(e.target.value) || 0 })
+                  setFormData({
+                    ...formData,
+                    sort_order: parseInt(e.target.value) || 0,
+                  })
                 }
                 helperText="Orden en que aparece (0 = primero)"
                 required
@@ -603,11 +550,11 @@ export default function EditDeepTalkPage({ params }: PageProps) {
 
             {/* Vista previa del gradiente */}
             <div className="mt-4">
-              <label className="block text-sm font-medium text-text-primary mb-2">
+              <label className="block text-sm font-medium text-white mb-2">
                 Vista Previa del Gradiente
               </label>
               <div
-                className="h-24 rounded-xl border-2 border-border"
+                className="h-24 rounded-xl border border-[#333333]"
                 style={{
                   background: `linear-gradient(135deg, ${formData.gradient_colors[0]}, ${formData.gradient_colors[1]})`,
                 }}
@@ -620,16 +567,20 @@ export default function EditDeepTalkPage({ params }: PageProps) {
                 <input
                   type="checkbox"
                   checked={formData.is_active}
-                  onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                  className="w-5 h-5 rounded border-border text-brand-yellow focus:ring-2 focus:ring-brand-yellow/50 bg-bg-tertiary"
+                  onChange={(e) =>
+                    setFormData({ ...formData, is_active: e.target.checked })
+                  }
+                  className="w-5 h-5 rounded border-[#333333] text-[#BDF522] focus:ring-2 focus:ring-[#BDF522]/50 bg-[#1A1A1A]"
                 />
-                <span className="text-sm text-text-primary font-medium">Categoría Activa</span>
+                <span className="text-sm text-white font-medium">
+                  Categoría Activa
+                </span>
               </label>
             </div>
           </div>
 
           {/* Idiomas */}
-          <div className="bg-bg-secondary/80 backdrop-blur-sm border border-border rounded-2xl p-6 shadow-lg shadow-black/10">
+          <div className="bg-[#2A2A2A] border border-[#333333] rounded-2xl p-6 shadow-lg shadow-black/20">
             <LanguageSelector
               selectedLanguages={selectedLanguages}
               onChange={handleLanguageChange}
@@ -646,11 +597,8 @@ export default function EditDeepTalkPage({ params }: PageProps) {
             />
           </div>
 
-          
-          
-
           {/* Botones de acción */}
-          <div className="flex items-center justify-end gap-3 pt-6 border-t border-border">
+          <div className="flex items-center justify-end gap-3 pt-6 border-t border-[#333333]">
             <Button
               type="button"
               variant="ghost"
@@ -660,7 +608,7 @@ export default function EditDeepTalkPage({ params }: PageProps) {
               Cancelar
             </Button>
             <Button type="submit" isLoading={isLoading}>
-              {isLoading ? 'Guardando...' : 'Guardar Cambios'}
+              {isLoading ? "Guardando..." : "Guardar Cambios"}
             </Button>
           </div>
         </form>
@@ -698,6 +646,7 @@ export default function EditDeepTalkPage({ params }: PageProps) {
           onClose={() => setToast(null)}
         />
       )}
+      </div>
     </div>
   );
 }

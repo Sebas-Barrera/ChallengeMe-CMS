@@ -70,45 +70,46 @@ export default function LoginPage() {
   };
 
   return (
-    <div className="min-h-screen bg-bg-primary flex items-center justify-center relative overflow-hidden p-4">
+    <div className="min-h-screen bg-[#1A1A1A] flex items-center justify-center relative overflow-hidden p-4">
       {/* Formas decorativas de fondo */}
-      <div className="absolute top-0 right-0 w-96 h-96 bg-brand-yellow/10 rounded-full blur-3xl pointer-events-none"></div>
-      <div className="absolute bottom-0 left-0 w-96 h-96 bg-brand-purple/10 rounded-full blur-3xl pointer-events-none"></div>
-
-      {/* Personaje decorativo */}
-      <div className="absolute top-10 right-10 opacity-5 pointer-events-none hidden xl:block">
+      <div className="absolute top-0 left-0 w-full pointer-events-none opacity-15">
         <Image
-          src="/character/ChallengeMe-16.png"
+          src="/resources/top-shapes.png"
           alt=""
-          width={300}
+          width={1920}
           height={300}
-          className="object-contain"
+          className="w-full h-auto"
+          priority
+        />
+      </div>
+      <div className="absolute bottom-0 left-0 w-full pointer-events-none opacity-15">
+        <Image
+          src="/resources/bottom-shapes.png"
+          alt=""
+          width={1920}
+          height={300}
+          className="w-full h-auto"
+          priority
         />
       </div>
 
       <div className="relative z-10 w-full max-w-md">
-        <div className="bg-bg-secondary/80 backdrop-blur-sm border border-border rounded-2xl p-8 shadow-2xl shadow-black/20">
-          {/* Logo y header */}
+        <div className="bg-[#2A2A2A]/80 backdrop-blur-sm border border-[#333333] rounded-2xl p-8 shadow-2xl shadow-black/20">
+          {/* Header */}
           <div className="text-center mb-8">
-            <div className="w-20 h-20 mx-auto mb-4 rounded-2xl bg-gradient-to-br from-brand-yellow/20 to-brand-yellow/5 border border-brand-yellow/30 flex items-center justify-center">
-              <svg
-                className="w-10 h-10 text-brand-yellow"
-                fill="none"
-                stroke="currentColor"
-                viewBox="0 0 24 24"
-              >
-                <path
-                  strokeLinecap="round"
-                  strokeLinejoin="round"
-                  strokeWidth={2}
-                  d="M13 10V3L4 14h7v7l9-11h-7z"
-                />
-              </svg>
+            <div className="w-40 h-40 mx-auto mb-6 flex items-center justify-center">
+              <Image
+                src="/logos/ChallengeMe-05.png"
+                alt="ChallengeMe"
+                width={160}
+                height={160}
+                className="object-contain"
+              />
             </div>
-            <h1 className="text-2xl font-bold text-text-primary mb-2">
+            <h1 className="text-3xl font-bold text-white mb-2 tracking-tight">
               {isSignUp ? 'Crear Cuenta' : 'Bienvenido de vuelta'}
             </h1>
-            <p className="text-sm text-text-secondary">
+            <p className="text-sm text-[#999999] font-medium">
               {isSignUp
                 ? 'Crea tu cuenta de administrador'
                 : 'Inicia sesión en el CMS de ChallengeMe'}
@@ -151,8 +152,11 @@ export default function LoginPage() {
             )}
 
             {error && (
-              <div className="bg-error/10 border border-error/30 rounded-xl p-3 text-sm text-error">
-                {error}
+              <div className="bg-red-500/10 border border-red-500/30 rounded-xl p-4 text-sm text-red-500 font-medium flex items-start gap-3">
+                <svg className="w-5 h-5 shrink-0 mt-0.5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M12 8v4m0 4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                <span>{error}</span>
               </div>
             )}
 
@@ -176,7 +180,7 @@ export default function LoginPage() {
                 setError('');
                 setConfirmPassword('');
               }}
-              className="text-sm text-text-secondary hover:text-brand-yellow transition-colors"
+              className="text-sm text-[#999999] hover:text-[#BDF522] transition-colors"
             >
               {isSignUp ? (
                 <>
@@ -194,8 +198,8 @@ export default function LoginPage() {
         </div>
 
         {/* Footer */}
-        <p className="text-center mt-6 text-xs text-text-tertiary">
-          ChallengeMe CMS © 2024. Todos los derechos reservados.
+        <p className="text-center mt-6 text-xs text-[#666666]">
+          ChallengeMe CMS © 2025. Todos los derechos reservados.
         </p>
       </div>
     </div>

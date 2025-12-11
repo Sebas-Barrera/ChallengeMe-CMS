@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from 'react';
 import { useRouter, useParams } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
 import Input from '@/components/ui/Input';
@@ -88,14 +89,9 @@ export default function EditCategoryPage() {
         .eq('id', categoryId)
         .single();
 
-      if (categoryError) {
-        throw categoryError;
-      }
-
-      if (!categoryData) {
-        showToast({ message: 'Categoría no encontrada', type: 'error' });
-        router.push('/challenges/categories');
-        return;
+      if (categoryError || !categoryData) {
+        // Redirigir a la página not-found que automáticamente llevará a /challenges/categories
+        notFound();
       }
 
       // Llenar formData
@@ -130,8 +126,8 @@ export default function EditCategoryPage() {
       setTranslations(translationsData);
     } catch (error: any) {
       console.error('Error al cargar categoría:', error);
-      showToast({ message: 'Error al cargar la categoría: ' + error.message, type: 'error' });
-      router.push('/challenges/categories');
+      // Si hay un error al cargar, redirigir a not-found
+      notFound();
     } finally {
       setIsLoadingData(false);
     }
@@ -243,37 +239,20 @@ export default function EditCategoryPage() {
         return;
       }
 
-      // 1. Actualizar la categoría
-      const { error: categoryError } = await supabase
-        .from('challenge_categories')
-        .update({
-          game_mode_id: formData.game_mode_id,
-          icon: formData.icon || null,
-          text_color: formData.text_color,
-          min_players: formData.min_players,
-          max_players: formData.max_players,
-          gradient_colors: formData.gradient_colors,
-          age_rating: formData.age_rating,
-          is_premium: formData.is_premium,
-          is_active: formData.is_active,
-        })
-        .eq('id', categoryId);
+      // Preparar datos de la categoría
+      const categoryData = {
+        game_mode_id: formData.game_mode_id,
+        icon: formData.icon || null,
+        text_color: formData.text_color,
+        min_players: formData.min_players,
+        max_players: formData.max_players,
+        gradient_colors: formData.gradient_colors,
+        age_rating: formData.age_rating,
+        is_premium: formData.is_premium,
+        is_active: formData.is_active,
+      };
 
-      if (categoryError) {
-        throw new Error(categoryError.message);
-      }
-
-      // 2. Eliminar traducciones existentes
-      const { error: deleteError } = await supabase
-        .from('challenge_category_translations')
-        .delete()
-        .eq('challenge_category_id', categoryId);
-
-      if (deleteError) {
-        throw new Error(deleteError.message);
-      }
-
-      // 3. Insertar nuevas traducciones
+      // Preparar traducciones
       const translationsToInsert = selectedLanguages.map((lang) => {
         const trans = translations[lang];
         const tags = trans.tags
@@ -284,7 +263,6 @@ export default function EditCategoryPage() {
           : [];
 
         return {
-          challenge_category_id: categoryId,
           language_code: lang,
           title: trans.title,
           description: trans.description || null,
@@ -293,12 +271,12 @@ export default function EditCategoryPage() {
         };
       });
 
-      const { error: translationsError } = await supabase
-        .from('challenge_category_translations')
-        .insert(translationsToInsert);
+      // Usar Server Action para actualizar la categoría
+      const { updateChallengeCategory } = await import('@/actions/challenges');
+      const result = await updateChallengeCategory(categoryId, categoryData, translationsToInsert);
 
-      if (translationsError) {
-        throw new Error(translationsError.message);
+      if (!result.success) {
+        throw new Error(result.error);
       }
 
       // Éxito - mostrar toast
@@ -324,37 +302,62 @@ export default function EditCategoryPage() {
 
   if (isLoadingData) {
     return (
-      <div className="min-h-screen bg-bg-primary flex items-center justify-center">
+      <div className="min-h-screen bg-[#1A1A1A] flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 mx-auto mb-4 border-4 border-brand-yellow/30 border-t-brand-yellow rounded-full animate-spin"></div>
-          <p className="text-text-secondary">Cargando categoría...</p>
+          <div className="w-16 h-16 mx-auto mb-4 border-4 border-[#BDF522]/30 border-t-[#BDF522] rounded-full animate-spin"></div>
+          <p className="text-[#999999]">Cargando categoría...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-bg-primary">
+    <div className="min-h-screen bg-[#1A1A1A] relative overflow-hidden">
+      {/* Formas decorativas de fondo */}
+      <div className="absolute top-0 left-0 w-full pointer-events-none opacity-15">
+        <Image
+          src="/resources/top-shapes.png"
+          alt=""
+          width={1920}
+          height={300}
+          className="w-full h-auto"
+          priority
+        />
+      </div>
+      <div className="absolute bottom-0 left-0 w-full pointer-events-none opacity-15">
+        <Image
+          src="/resources/bottom-shapes.png"
+          alt=""
+          width={1920}
+          height={300}
+          className="w-full h-auto"
+          priority
+        />
+      </div>
+
+      <div className="relative z-10">
       {/* Header */}
-      <header className="bg-bg-secondary/80 backdrop-blur-sm border-b border-border sticky top-0 z-50">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+      <header className="bg-[#2A2A2A]/80 backdrop-blur-sm border-b border-[#333333] sticky top-0 z-50">
+        <div className="max-w-5xl mx-auto px-6 lg:px-8">
+          <div className="flex items-center justify-between h-20">
             <div className="flex items-center gap-4">
               <Link href="/" className="flex-shrink-0">
-                <Image
-                  src="/logos/ChallengeMe-05.png"
-                  alt="ChallengeMe"
-                  width={40}
-                  height={40}
-                  className="object-contain"
-                />
+                <div className="relative w-14 h-14 flex items-center justify-center">
+                  <Image
+                    src="/logos/ChallengeMe-05.png"
+                    alt="ChallengeMe"
+                    width={56}
+                    height={56}
+                    className="object-contain"
+                  />
+                </div>
               </Link>
               <Link
                 href="/challenges/categories"
-                className="w-10 h-10 rounded-xl bg-bg-tertiary hover:bg-border border border-border flex items-center justify-center transition-colors"
+                className="w-10 h-10 rounded-xl bg-[#1A1A1A] hover:bg-[#333333] border border-[#333333] flex items-center justify-center transition-colors"
               >
                 <svg
-                  className="w-5 h-5 text-text-primary"
+                  className="w-5 h-5 text-white"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -367,9 +370,10 @@ export default function EditCategoryPage() {
                   />
                 </svg>
               </Link>
+              <div className="h-10 w-px bg-[#333333]"></div>
               <div>
-                <h1 className="text-lg font-bold text-text-primary">Editar Categoría</h1>
-                <p className="text-xs text-text-secondary">
+                <h1 className="text-lg font-bold text-white tracking-tight">Editar Categoría</h1>
+                <p className="text-xs text-[#999999] font-medium">
                   Modificar categoría de retos
                 </p>
               </div>
@@ -379,14 +383,14 @@ export default function EditCategoryPage() {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-5xl mx-auto px-6 lg:px-8 py-8">
         <form onSubmit={handleSubmit} className="space-y-8">
           {/* Información General */}
-          <div className="bg-bg-secondary/80 backdrop-blur-sm border border-border rounded-2xl p-6 shadow-lg shadow-black/10">
+          <div className="bg-[#2A2A2A] border border-[#333333] rounded-2xl p-6 shadow-lg shadow-black/20">
             <div className="flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-yellow/20 to-brand-yellow/5 border border-brand-yellow/30 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-[#BDF522]/20 to-[#BDF522]/5 border border-[#BDF522]/30 flex items-center justify-center">
                 <svg
-                  className="w-6 h-6 text-brand-yellow"
+                  className="w-6 h-6 text-[#BDF522]"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -400,8 +404,8 @@ export default function EditCategoryPage() {
                 </svg>
               </div>
               <div>
-                <h2 className="text-xl font-bold text-text-primary">Información General</h2>
-                <p className="text-sm text-text-secondary">
+                <h2 className="text-xl font-bold text-white tracking-tight">Información General</h2>
+                <p className="text-sm text-[#999999]">
                   Configuración básica de la categoría
                 </p>
               </div>
@@ -491,11 +495,11 @@ export default function EditCategoryPage() {
 
             {/* Vista previa del gradiente */}
             <div className="mt-4">
-              <label className="block text-sm font-medium text-text-primary mb-2">
+              <label className="block text-sm font-medium text-white mb-2">
                 Vista Previa del Gradiente
               </label>
               <div
-                className="h-24 rounded-xl"
+                className="h-24 rounded-xl border border-[#333333]"
                 style={{
                   background: `linear-gradient(135deg, ${formData.gradient_colors[0]}, ${formData.gradient_colors[1]})`,
                 }}
@@ -511,9 +515,9 @@ export default function EditCategoryPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, is_premium: e.target.checked })
                   }
-                  className="w-5 h-5 rounded border-border text-brand-yellow focus:ring-2 focus:ring-brand-yellow/50 bg-bg-tertiary"
+                  className="w-5 h-5 rounded border-[#333333] text-[#BDF522] focus:ring-2 focus:ring-[#BDF522]/50 bg-[#1A1A1A]"
                 />
-                <span className="text-sm text-text-primary font-medium">
+                <span className="text-sm text-white font-medium">
                   Es contenido Premium
                 </span>
               </label>
@@ -525,9 +529,9 @@ export default function EditCategoryPage() {
                   onChange={(e) =>
                     setFormData({ ...formData, is_active: e.target.checked })
                   }
-                  className="w-5 h-5 rounded border-border text-brand-yellow focus:ring-2 focus:ring-brand-yellow/50 bg-bg-tertiary"
+                  className="w-5 h-5 rounded border-[#333333] text-[#BDF522] focus:ring-2 focus:ring-[#BDF522]/50 bg-[#1A1A1A]"
                 />
-                <span className="text-sm text-text-primary font-medium">
+                <span className="text-sm text-white font-medium">
                   Categoría Activa
                 </span>
               </label>
@@ -535,7 +539,7 @@ export default function EditCategoryPage() {
           </div>
 
           {/* Idiomas */}
-          <div className="bg-bg-secondary/80 backdrop-blur-sm border border-border rounded-2xl p-6 shadow-lg shadow-black/10">
+          <div className="bg-[#2A2A2A] border border-[#333333] rounded-2xl p-6 shadow-lg shadow-black/20">
             <LanguageSelector
               selectedLanguages={selectedLanguages}
               onChange={(languages) => {
@@ -569,7 +573,7 @@ export default function EditCategoryPage() {
           </div>
 
           {/* Botones de acción */}
-          <div className="flex items-center justify-end gap-3 pt-6 border-t border-border">
+          <div className="flex items-center justify-end gap-3 pt-6 border-t border-[#333333]">
             <Button
               type="button"
               variant="ghost"
@@ -594,6 +598,7 @@ export default function EditCategoryPage() {
           onClose={hideToast}
         />
       )}
+      </div>
     </div>
   );
 }

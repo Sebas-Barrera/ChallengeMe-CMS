@@ -2,9 +2,9 @@
 
 import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
+import { notFound } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import Input from '@/components/ui/Input';
 import Textarea from '@/components/ui/Textarea';
 import Button from '@/components/ui/Button';
 import Toast from '@/components/ui/Toast';
@@ -82,21 +82,16 @@ export default function EditChallengePage({ params }: PageProps) {
           *,
           challenge_translations (
             language_code,
-            content,
-            icon
+            content
           )
         `)
         .eq('id', challengeId)
         .single();
 
-      if (challengeError) {
-        throw challengeError;
-      }
-
-      if (!challengeData) {
-        showToast({ message: 'Reto no encontrado', type: 'error' });
-        router.push(`/challenges/categories/${categoryId}/challenges`);
-        return;
+      // Verificar si el reto no existe
+      if (challengeError || !challengeData) {
+        // Redirigir a la página not-found que automáticamente llevará a /challenges/categories
+        notFound();
       }
 
       // Llenar formData
@@ -122,8 +117,8 @@ export default function EditChallengePage({ params }: PageProps) {
       setTranslations(translationsData);
     } catch (error: any) {
       console.error('Error al cargar reto:', error);
-      showToast({ message: 'Error al cargar el reto: ' + error.message, type: 'error' });
-      router.push(`/challenges/categories/${categoryId}/challenges`);
+      // Si hay un error al cargar, redirigir a not-found
+      notFound();
     } finally {
       setIsLoadingData(false);
     }
@@ -198,44 +193,25 @@ export default function EditChallengePage({ params }: PageProps) {
         return;
       }
 
-      // 1. Actualizar el reto
-      const { error: challengeError } = await supabase
-        .from('challenges')
-        .update({
-          icon: formData.icon || null,
-          is_active: formData.is_active,
-          is_premium: formData.is_premium,
-        })
-        .eq('id', challengeId);
+      // Preparar datos del reto
+      const challengeData = {
+        icon: formData.icon || null,
+        is_active: formData.is_active,
+        is_premium: formData.is_premium,
+      };
 
-      if (challengeError) {
-        throw new Error(challengeError.message);
-      }
-
-      // 2. Eliminar traducciones existentes
-      const { error: deleteError } = await supabase
-        .from('challenge_translations')
-        .delete()
-        .eq('challenge_id', challengeId);
-
-      if (deleteError) {
-        throw new Error(deleteError.message);
-      }
-
-      // 3. Insertar nuevas traducciones
+      // Preparar traducciones
       const translationsToInsert = selectedLanguages.map((lang) => ({
-        challenge_id: challengeId,
         language_code: lang,
         content: translations[lang].content,
-        icon: formData.icon || null,
       }));
 
-      const { error: translationsError } = await supabase
-        .from('challenge_translations')
-        .insert(translationsToInsert);
+      // Usar Server Action para actualizar el reto
+      const { updateChallenge } = await import('@/actions/challenges');
+      const result = await updateChallenge(challengeId, challengeData, translationsToInsert);
 
-      if (translationsError) {
-        throw new Error(translationsError.message);
+      if (!result.success) {
+        throw new Error(result.error);
       }
 
       // Éxito - redirigir
@@ -253,37 +229,62 @@ export default function EditChallengePage({ params }: PageProps) {
 
   if (isLoadingData) {
     return (
-      <div className="min-h-screen bg-bg-primary flex items-center justify-center">
+      <div className="min-h-screen bg-[#1A1A1A] flex items-center justify-center">
         <div className="text-center">
-          <div className="w-16 h-16 mx-auto mb-4 border-4 border-brand-yellow/30 border-t-brand-yellow rounded-full animate-spin"></div>
-          <p className="text-text-secondary">Cargando reto...</p>
+          <div className="w-16 h-16 mx-auto mb-4 border-4 border-[#BDF522]/30 border-t-[#BDF522] rounded-full animate-spin"></div>
+          <p className="text-[#999999]">Cargando reto...</p>
         </div>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-bg-primary">
+    <div className="min-h-screen bg-[#1A1A1A] relative overflow-hidden">
+      {/* Formas decorativas de fondo */}
+      <div className="absolute top-0 left-0 w-full pointer-events-none opacity-15">
+        <Image
+          src="/resources/top-shapes.png"
+          alt=""
+          width={1920}
+          height={300}
+          className="w-full h-auto"
+          priority
+        />
+      </div>
+      <div className="absolute bottom-0 left-0 w-full pointer-events-none opacity-15">
+        <Image
+          src="/resources/bottom-shapes.png"
+          alt=""
+          width={1920}
+          height={300}
+          className="w-full h-auto"
+          priority
+        />
+      </div>
+
+      <div className="relative z-10">
       {/* Header */}
-      <header className="bg-bg-secondary/80 backdrop-blur-sm border-b border-border sticky top-0 z-50">
-        <div className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
+      <header className="bg-[#2A2A2A]/80 backdrop-blur-sm border-b border-[#333333] sticky top-0 z-50">
+        <div className="max-w-5xl mx-auto px-6 lg:px-8">
+          <div className="flex items-center justify-between h-20">
             <div className="flex items-center gap-4">
-              <Link href="/" className="flex-shrink-0">
-                <Image
-                  src="/logos/ChallengeMe-05.png"
-                  alt="ChallengeMe"
-                  width={40}
-                  height={40}
-                  className="object-contain"
-                />
+              <Link href="/" className="shrink-0">
+                <div className="relative w-14 h-14 flex items-center justify-center">
+                  <Image
+                    src="/logos/ChallengeMe-05.png"
+                    alt="ChallengeMe"
+                    width={56}
+                    height={56}
+                    className="object-contain"
+                  />
+                </div>
               </Link>
               <Link
                 href={`/challenges/categories/${categoryId}/challenges`}
-                className="w-10 h-10 rounded-xl bg-bg-tertiary hover:bg-border border border-border flex items-center justify-center transition-colors"
+                className="w-10 h-10 rounded-xl bg-[#1A1A1A] hover:bg-[#333333] border border-[#333333] flex items-center justify-center transition-colors"
               >
                 <svg
-                  className="w-5 h-5 text-text-primary"
+                  className="w-5 h-5 text-white"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -296,9 +297,10 @@ export default function EditChallengePage({ params }: PageProps) {
                   />
                 </svg>
               </Link>
+              <div className="h-10 w-px bg-[#333333]"></div>
               <div>
-                <h1 className="text-lg font-bold text-text-primary">Editar Reto</h1>
-                <p className="text-xs text-text-secondary">Modificar reto existente</p>
+                <h1 className="text-lg font-bold text-white tracking-tight">Editar Reto</h1>
+                <p className="text-xs text-[#999999] font-medium">Modificar reto existente</p>
               </div>
             </div>
           </div>
@@ -306,12 +308,12 @@ export default function EditChallengePage({ params }: PageProps) {
       </header>
 
       {/* Main Content */}
-      <main className="max-w-5xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+      <main className="max-w-5xl mx-auto px-6 lg:px-8 py-8">
         <form onSubmit={handleSubmit} className="space-y-8">
           {/* Icono o Emoji del Reto */}
-          <div className="bg-bg-secondary/80 backdrop-blur-sm border border-border rounded-2xl p-6 shadow-lg shadow-black/10">
+          <div className="bg-[#2A2A2A] border border-[#333333] rounded-2xl p-6 shadow-lg shadow-black/20">
             <div className="flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-yellow/20 to-brand-yellow/5 border border-brand-yellow/30 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-xl bg-linear-to-br from-[#BDF522]/20 to-[#BDF522]/5 border border-[#BDF522]/30 flex items-center justify-center">
                 {(() => {
                   if (!formData.icon) return null;
 
@@ -320,7 +322,7 @@ export default function EditChallengePage({ params }: PageProps) {
 
                   // Si existe el componente, es un ionicon
                   if (IconComponent) {
-                    return <IconComponent size={28} className="text-brand-yellow" />;
+                    return <IconComponent size={28} className="text-[#BDF522]" />;
                   }
 
                   // Si no existe el componente, es un emoji
@@ -328,8 +330,8 @@ export default function EditChallengePage({ params }: PageProps) {
                 })()}
               </div>
               <div>
-                <h2 className="text-xl font-bold text-text-primary">Icono o Emoji del Reto</h2>
-                <p className="text-sm text-text-secondary">Elige un emoji o un icono de Ionicons para representar este reto</p>
+                <h2 className="text-xl font-bold text-white tracking-tight">Icono o Emoji del Reto</h2>
+                <p className="text-sm text-[#999999]">Elige un emoji o un icono de Ionicons para representar este reto</p>
               </div>
             </div>
 
@@ -342,9 +344,9 @@ export default function EditChallengePage({ params }: PageProps) {
           </div>
 
           {/* Información General */}
-          <div className="bg-bg-secondary/80 backdrop-blur-sm border border-border rounded-2xl p-6 shadow-lg shadow-black/10">
+          <div className="bg-[#2A2A2A] border border-[#333333] rounded-2xl p-6 shadow-lg shadow-black/20">
             <div className="flex items-center gap-3 mb-6">
-              <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-yellow/20 to-brand-yellow/5 border border-brand-yellow/30 flex items-center justify-center">
+              <div className="w-12 h-12 rounded-xl bg-linear-to-br from-[#BDF522]/20 to-[#BDF522]/5 border border-[#BDF522]/30 flex items-center justify-center">
                 {formData.icon ? (
                   (() => {
                     // Intentar convertir a React Icon
@@ -352,7 +354,7 @@ export default function EditChallengePage({ params }: PageProps) {
 
                     // Si existe el componente, es un ionicon
                     if (IconComponent) {
-                      return <IconComponent size={28} className="text-brand-yellow" />;
+                      return <IconComponent size={28} className="text-[#BDF522]" />;
                     }
 
                     // Si no existe el componente, es un emoji
@@ -360,7 +362,7 @@ export default function EditChallengePage({ params }: PageProps) {
                   })()
                 ) : (
                   <svg
-                    className="w-6 h-6 text-brand-yellow"
+                    className="w-6 h-6 text-[#BDF522]"
                     fill="none"
                     stroke="currentColor"
                     viewBox="0 0 24 24"
@@ -375,8 +377,8 @@ export default function EditChallengePage({ params }: PageProps) {
                 )}
               </div>
               <div>
-                <h2 className="text-xl font-bold text-text-primary">Información General</h2>
-                <p className="text-sm text-text-secondary">Configuración básica del reto</p>
+                <h2 className="text-xl font-bold text-white tracking-tight">Información General</h2>
+                <p className="text-sm text-[#999999]">Configuración básica del reto</p>
               </div>
             </div>
 
@@ -388,9 +390,9 @@ export default function EditChallengePage({ params }: PageProps) {
                   onChange={(e) =>
                     setFormData({ ...formData, is_premium: e.target.checked })
                   }
-                  className="w-5 h-5 rounded border-border text-brand-yellow focus:ring-2 focus:ring-brand-yellow/50 bg-bg-tertiary"
+                  className="w-5 h-5 rounded border-[#333333] text-[#BDF522] focus:ring-2 focus:ring-[#BDF522]/50 bg-[#1A1A1A]"
                 />
-                <span className="text-sm text-text-primary font-medium">
+                <span className="text-sm text-white font-medium">
                   Es contenido Premium
                 </span>
               </label>
@@ -400,15 +402,15 @@ export default function EditChallengePage({ params }: PageProps) {
                   type="checkbox"
                   checked={formData.is_active}
                   onChange={(e) => setFormData({ ...formData, is_active: e.target.checked })}
-                  className="w-5 h-5 rounded border-border text-brand-yellow focus:ring-2 focus:ring-brand-yellow/50 bg-bg-tertiary"
+                  className="w-5 h-5 rounded border-[#333333] text-[#BDF522] focus:ring-2 focus:ring-[#BDF522]/50 bg-[#1A1A1A]"
                 />
-                <span className="text-sm text-text-primary font-medium">Reto Activo</span>
+                <span className="text-sm text-white font-medium">Reto Activo</span>
               </label>
             </div>
           </div>
 
           {/* Idiomas */}
-          <div className="bg-bg-secondary/80 backdrop-blur-sm border border-border rounded-2xl p-6 shadow-lg shadow-black/10">
+          <div className="bg-[#2A2A2A] border border-[#333333] rounded-2xl p-6 shadow-lg shadow-black/20">
             <LanguageSelector
               selectedLanguages={selectedLanguages}
               onChange={(languages) => {
@@ -431,9 +433,9 @@ export default function EditChallengePage({ params }: PageProps) {
           {/* Traducciones */}
           <div className="space-y-6">
             {selectedLanguages.length === 0 ? (
-              <div className="bg-bg-secondary/50 border border-border rounded-xl p-6 text-center">
+              <div className="bg-[#2A2A2A]/50 border border-[#333333] rounded-xl p-6 text-center">
                 <svg
-                  className="w-12 h-12 mx-auto mb-3 text-text-tertiary"
+                  className="w-12 h-12 mx-auto mb-3 text-[#666666]"
                   fill="none"
                   stroke="currentColor"
                   viewBox="0 0 24 24"
@@ -445,7 +447,7 @@ export default function EditChallengePage({ params }: PageProps) {
                     d="M21 12a9 9 0 01-9 9m9-9a9 9 0 00-9-9m9 9H3m9 9a9 9 0 01-9-9m9 9c1.657 0 3-4.03 3-9s-1.343-9-3-9m0 18c-1.657 0-3-4.03-3-9s1.343-9 3-9m-9 9a9 9 0 019-9"
                   />
                 </svg>
-                <p className="text-text-secondary">
+                <p className="text-[#999999]">
                   Selecciona al menos un idioma para agregar traducciones
                 </p>
               </div>
@@ -462,19 +464,19 @@ export default function EditChallengePage({ params }: PageProps) {
                 return (
                   <div
                     key={languageCode}
-                    className="bg-bg-secondary/80 backdrop-blur-sm border border-border rounded-2xl p-6 shadow-lg shadow-black/10"
+                    className="bg-[#2A2A2A] border border-[#333333] rounded-2xl p-6 shadow-lg shadow-black/20"
                   >
                     {/* Header del idioma */}
-                    <div className="flex items-center justify-between gap-3 mb-6 pb-4 border-b border-border/50">
+                    <div className="flex items-center justify-between gap-3 mb-6 pb-4 border-b border-[#333333]/50">
                       <div className="flex items-center gap-3">
-                        <div className="w-12 h-12 rounded-xl bg-gradient-to-br from-brand-yellow/20 to-brand-yellow/5 border border-brand-yellow/30 flex items-center justify-center">
+                        <div className="w-12 h-12 rounded-xl bg-linear-to-br from-[#BDF522]/20 to-[#BDF522]/5 border border-[#BDF522]/30 flex items-center justify-center">
                           <span className="text-2xl">{language.flag}</span>
                         </div>
                         <div>
-                          <h3 className="text-lg font-bold text-text-primary">
+                          <h3 className="text-lg font-bold text-white">
                             {language.nativeName}
                           </h3>
-                          <p className="text-xs text-text-secondary">
+                          <p className="text-xs text-[#999999]">
                             {language.name} ({language.code.toUpperCase()})
                           </p>
                         </div>
@@ -486,7 +488,7 @@ export default function EditChallengePage({ params }: PageProps) {
                           type="button"
                           onClick={() => handleAutoTranslate(languageCode)}
                           disabled={translatingLanguage !== null}
-                          className="px-3 py-2 bg-brand-purple/10 hover:bg-brand-purple/20 border border-brand-purple/30 text-brand-purple rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed hover:scale-105"
+                          className="px-3 py-2 bg-[#7B46F8]/10 hover:bg-[#7B46F8]/20 border border-[#7B46F8]/30 text-[#7B46F8] rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 disabled:opacity-50 disabled:cursor-not-allowed"
                         >
                           {translatingLanguage === languageCode ? (
                             <>
@@ -545,7 +547,7 @@ export default function EditChallengePage({ params }: PageProps) {
           </div>
 
           {/* Botones de acción */}
-          <div className="flex items-center justify-end gap-3 pt-6 border-t border-border">
+          <div className="flex items-center justify-end gap-3 pt-6 border-t border-[#333333]">
             <Button
               type="button"
               variant="ghost"
@@ -560,6 +562,7 @@ export default function EditChallengePage({ params }: PageProps) {
           </div>
         </form>
       </main>
+      </div>
 
       {/* Toast notification */}
       {toast && (
