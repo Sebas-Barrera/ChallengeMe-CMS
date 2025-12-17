@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 import { useToast } from '@/hooks/useToast';
 import Toast from '@/components/ui/Toast';
 import * as IoIcons from 'react-icons/io5';
@@ -14,7 +14,7 @@ interface Translation {
   description: string;
 }
 
-interface CategoryData {
+interface CategoryDataFromDB {
   id: string;
   icon: string;
   text_color: string;
@@ -24,6 +24,8 @@ interface CategoryData {
   min_players: number;
   max_players: number;
   sort_order: number;
+  author: string | null;
+  challenge_count: number;
   challenge_category_translations: {
     language_code: string;
     title: string;
@@ -42,10 +44,12 @@ interface Category {
   max_players: number;
   sort_order: number;
   challenge_count: number;
+  author: string | null;
   translations: Record<string, Translation>;
 }
 
 type FilterStatus = 'all' | 'active' | 'inactive';
+type FilterAuthor = 'all' | 'with-author' | 'without-author';
 
 // Convertir nombre de Ionicons a componente de React Icons
 // Ejemplo: game-controller -> IoGameController
@@ -61,12 +65,12 @@ const getIconComponent = (iconName: string) => {
 };
 
 export default function CategoriesPage() {
-  const { supabase } = useAuth();
   const { toast, showToast, hideToast } = useToast();
   const [categories, setCategories] = useState<Category[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [filterStatus, setFilterStatus] = useState<FilterStatus>('all');
+  const [filterAuthor, setFilterAuthor] = useState<FilterAuthor>('all');
   const [deleteModalOpen, setDeleteModalOpen] = useState(false);
   const [categoryToDelete, setCategoryToDelete] = useState<Category | null>(null);
   const [isDeleting, setIsDeleting] = useState(false);
@@ -109,6 +113,13 @@ export default function CategoriesPage() {
       filtered = filtered.filter(cat => cat.is_active);
     } else if (filterStatus === 'inactive') {
       filtered = filtered.filter(cat => !cat.is_active);
+    }
+
+    // Aplicar filtro por autor
+    if (filterAuthor === 'with-author') {
+      filtered = filtered.filter(cat => cat.author && cat.author.trim() !== '');
+    } else if (filterAuthor === 'without-author') {
+      filtered = filtered.filter(cat => !cat.author || cat.author.trim() === '');
     }
 
     return filtered;
@@ -157,70 +168,45 @@ export default function CategoriesPage() {
     try {
       setIsLoading(true);
 
-      // Obtener categorías con sus traducciones, ordenadas por sort_order
-      const { data: categoriesData, error: categoriesError } = await supabase
-        .from('challenge_categories')
-        .select(`
-          id,
-          icon,
-          text_color,
-          gradient_colors,
-          is_active,
-          is_premium,
-          min_players,
-          max_players,
-          sort_order,
-          challenge_category_translations (
-            language_code,
-            title,
-            description
-          )
-        `)
-        .order('sort_order', { ascending: true });
+      // Usar Server Action para obtener categorías con permisos admin
+      const { getChallengeCategories } = await import('@/actions/challenges');
+      const result = await getChallengeCategories();
 
-      if (categoriesError) {
-        console.error('Error fetching categories:', categoriesError);
+      if (!result.success) {
+        console.error('Error fetching categories:', result.error);
+        showToast({ message: `Error al cargar categorías: ${result.error}`, type: 'error' });
         return;
       }
 
-      // Obtener el conteo de retos para cada categoría
-      const formattedCategories: Category[] = await Promise.all(
-        (categoriesData || []).map(async (cat: CategoryData) => {
-          const translations: Record<string, Translation> = {};
+      console.log('Categories data loaded:', result.data);
 
-          cat.challenge_category_translations.forEach((trans) => {
-            translations[trans.language_code] = {
-              language_code: trans.language_code,
-              title: trans.title,
-              description: trans.description || '',
-            };
-          });
+      // Formatear las categorías
+      const formattedCategories: Category[] = (result.data || []).map((cat: CategoryDataFromDB) => {
+        const translations: Record<string, Translation> = {};
 
-          // Contar retos de esta categoría
-          const { count, error: countError } = await supabase
-            .from('challenges')
-            .select('*', { count: 'exact', head: true })
-            .eq('challenge_category_id', cat.id);
-
-          if (countError) {
-            console.error('Error counting challenges for category:', cat.id, countError);
-          }
-
-          return {
-            id: cat.id,
-            icon: cat.icon || 'flash',
-            text_color: cat.text_color,
-            gradient_colors: cat.gradient_colors,
-            is_active: cat.is_active,
-            is_premium: cat.is_premium,
-            min_players: cat.min_players,
-            max_players: cat.max_players,
-            sort_order: cat.sort_order,
-            challenge_count: count || 0,
-            translations,
+        cat.challenge_category_translations.forEach((trans) => {
+          translations[trans.language_code] = {
+            language_code: trans.language_code,
+            title: trans.title,
+            description: trans.description || '',
           };
-        })
-      );
+        });
+
+        return {
+          id: cat.id,
+          icon: cat.icon || 'flash',
+          text_color: cat.text_color,
+          gradient_colors: cat.gradient_colors,
+          is_active: cat.is_active,
+          is_premium: cat.is_premium,
+          min_players: cat.min_players,
+          max_players: cat.max_players,
+          sort_order: cat.sort_order,
+          challenge_count: cat.challenge_count || 0,
+          author: cat.author,
+          translations,
+        };
+      });
 
       setCategories(formattedCategories);
     } catch (error) {
@@ -688,7 +674,7 @@ export default function CategoriesPage() {
                       {/* Menu */}
                       <div className="absolute right-0 top-12 z-20 bg-[#2A2A2A] border border-[#333333] rounded-xl shadow-2xl shadow-black/50 p-4 min-w-[280px]">
                         {/* Estado */}
-                        <div>
+                        <div className="mb-4">
                           <label className="block text-xs font-medium text-[#999999] mb-2">
                             Estado
                           </label>
@@ -696,7 +682,6 @@ export default function CategoriesPage() {
                             <button
                               onClick={() => {
                                 setFilterStatus('all');
-                                setIsFilterOpen(false);
                               }}
                               className={`w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
                                 filterStatus === 'all'
@@ -709,7 +694,6 @@ export default function CategoriesPage() {
                             <button
                               onClick={() => {
                                 setFilterStatus('active');
-                                setIsFilterOpen(false);
                               }}
                               className={`w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
                                 filterStatus === 'active'
@@ -722,7 +706,6 @@ export default function CategoriesPage() {
                             <button
                               onClick={() => {
                                 setFilterStatus('inactive');
-                                setIsFilterOpen(false);
                               }}
                               className={`w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
                                 filterStatus === 'inactive'
@@ -733,6 +716,64 @@ export default function CategoriesPage() {
                               Inactivas
                             </button>
                           </div>
+                        </div>
+
+                        {/* Divisor */}
+                        <div className="h-px bg-[#333333] mb-4"></div>
+
+                        {/* Autor */}
+                        <div>
+                          <label className="block text-xs font-medium text-[#999999] mb-2">
+                            Autor
+                          </label>
+                          <div className="space-y-2">
+                            <button
+                              onClick={() => {
+                                setFilterAuthor('all');
+                              }}
+                              className={`w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
+                                filterAuthor === 'all'
+                                  ? 'bg-[#BDF522]/20 border-2 border-[#BDF522] text-[#BDF522]'
+                                  : 'bg-[#1A1A1A] hover:bg-[#333333] text-white'
+                              }`}
+                            >
+                              Todas
+                            </button>
+                            <button
+                              onClick={() => {
+                                setFilterAuthor('with-author');
+                              }}
+                              className={`w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
+                                filterAuthor === 'with-author'
+                                  ? 'bg-[#BDF522]/20 border-2 border-[#BDF522] text-[#BDF522]'
+                                  : 'bg-[#1A1A1A] hover:bg-[#333333] text-white'
+                              }`}
+                            >
+                              Con Autor
+                            </button>
+                            <button
+                              onClick={() => {
+                                setFilterAuthor('without-author');
+                              }}
+                              className={`w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
+                                filterAuthor === 'without-author'
+                                  ? 'bg-[#BDF522]/20 border-2 border-[#BDF522] text-[#BDF522]'
+                                  : 'bg-[#1A1A1A] hover:bg-[#333333] text-white'
+                              }`}
+                            >
+                              Sin Autor
+                            </button>
+                          </div>
+                        </div>
+
+                        {/* Botón de cerrar */}
+                        <div className="mt-4 pt-4 border-t border-[#333333]">
+                          <button
+                            onClick={() => setIsFilterOpen(false)}
+                            className="w-full px-3 py-2 bg-[#BDF522] hover:bg-[#BDF522]/90 text-black rounded-lg text-sm font-semibold transition-colors"
+                          >
+                            Aplicar Filtros
+                          </button>
                         </div>
                       </div>
                     </>
@@ -811,6 +852,19 @@ export default function CategoriesPage() {
                       <h3 className="text-xl font-bold text-white mb-2 group-hover:text-[#BDF522] transition-colors">
                         {category.translations.es?.title || category.translations.en?.title || 'Sin título'}
                       </h3>
+
+                      {category.author && (
+                        <div className="flex items-center gap-2 mb-3">
+                          <div className="flex items-center gap-1.5 px-2.5 py-1 bg-[#BDF522]/10 border border-[#BDF522]/30 rounded-lg">
+                            <svg className="w-3.5 h-3.5 text-[#BDF522]" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z" />
+                            </svg>
+                            <span className="text-xs font-semibold text-[#BDF522]">Autor:</span>
+                            <span className="text-xs font-medium text-white">{category.author}</span>
+                          </div>
+                        </div>
+                      )}
+
                       <p className="text-sm text-[#CCCCCC] mb-4 line-clamp-2">
                         {category.translations.es?.description || category.translations.en?.description || 'Sin descripción'}
                       </p>

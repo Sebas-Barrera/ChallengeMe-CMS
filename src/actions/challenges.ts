@@ -2,6 +2,155 @@
 
 import { supabaseAdmin } from '@/lib/supabase-admin';
 
+export async function getChallengeCategories() {
+  try {
+    // Obtener categorías con sus traducciones
+    const { data: categoriesData, error: categoriesError } = await supabaseAdmin
+      .from('challenge_categories')
+      .select(`
+        *,
+        challenge_category_translations (
+          language_code,
+          title,
+          description
+        )
+      `)
+      .order('sort_order', { ascending: true, nullsFirst: false })
+      .order('id', { ascending: true });
+
+    if (categoriesError) {
+      return { success: false, error: categoriesError.message };
+    }
+
+    // Obtener el conteo de retos para cada categoría
+    const categoriesWithCounts = await Promise.all(
+      (categoriesData || []).map(async (cat: any) => {
+        const { count } = await supabaseAdmin
+          .from('challenges')
+          .select('*', { count: 'exact', head: true })
+          .eq('challenge_category_id', cat.id);
+
+        return {
+          ...cat,
+          challenge_count: count || 0,
+        };
+      })
+    );
+
+    return { success: true, data: categoriesWithCounts };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Error desconocido' };
+  }
+}
+
+export async function getChallengeCategory(categoryId: string) {
+  try {
+    // Obtener categoría con sus traducciones
+    const { data: categoryData, error: categoryError } = await supabaseAdmin
+      .from('challenge_categories')
+      .select(`
+        *,
+        challenge_category_translations (
+          language_code,
+          title,
+          description,
+          instructions,
+          tags
+        )
+      `)
+      .eq('id', categoryId)
+      .single();
+
+    if (categoryError) {
+      return { success: false, error: categoryError.message };
+    }
+
+    return { success: true, data: categoryData };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Error desconocido' };
+  }
+}
+
+export async function getChallengesByCategory(categoryId: string) {
+  try {
+    // Obtener categoría con sus traducciones
+    const { data: categoryData, error: categoryError } = await supabaseAdmin
+      .from('challenge_categories')
+      .select(`
+        id,
+        icon,
+        gradient_colors,
+        challenge_category_translations (
+          language_code,
+          title
+        )
+      `)
+      .eq('id', categoryId)
+      .single();
+
+    if (categoryError) {
+      return { success: false, error: categoryError.message };
+    }
+
+    // Obtener retos de esta categoría
+    const { data: challengesData, error: challengesError } = await supabaseAdmin
+      .from('challenges')
+      .select(`
+        id,
+        challenge_category_id,
+        icon,
+        is_active,
+        is_premium,
+        author,
+        challenge_translations (
+          language_code,
+          content
+        )
+      `)
+      .eq('challenge_category_id', categoryId)
+      .order('id', { ascending: true });
+
+    if (challengesError) {
+      return { success: false, error: challengesError.message };
+    }
+
+    return {
+      success: true,
+      data: {
+        category: categoryData,
+        challenges: challengesData || [],
+      },
+    };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Error desconocido' };
+  }
+}
+
+export async function getChallenge(challengeId: string) {
+  try {
+    // Obtener challenge con sus traducciones
+    const { data: challengeData, error: challengeError } = await supabaseAdmin
+      .from('challenges')
+      .select(`
+        *,
+        challenge_translations (
+          language_code,
+          content
+        )
+      `)
+      .eq('id', challengeId)
+      .single();
+
+    if (challengeError) {
+      return { success: false, error: challengeError.message };
+    }
+
+    return { success: true, data: challengeData };
+  } catch (error: any) {
+    return { success: false, error: error.message || 'Error desconocido' };
+  }
+}
+
 interface CategoryData {
   game_mode_id: string;
   icon: string | null;
@@ -31,6 +180,7 @@ interface ChallengeData {
   icon: string | null;
   is_active: boolean;
   is_premium: boolean;
+  author?: string | null;
 }
 
 interface ChallengeTranslation {

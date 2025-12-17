@@ -4,7 +4,7 @@ import { useState, useEffect } from 'react';
 import { useParams, useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 import * as IoIcons from 'react-icons/io5';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import SuccessModal from '@/components/ui/SuccessModal';
@@ -59,7 +59,6 @@ const getIonIcon = (iconName: string | null) => {
 export default function DeepTalksListPage() {
   const params = useParams();
   const router = useRouter();
-  const { supabase } = useAuth();
   const categoryId = params.id as string;
 
   const [filter, setFilter] = useState<Filter | null>(null);

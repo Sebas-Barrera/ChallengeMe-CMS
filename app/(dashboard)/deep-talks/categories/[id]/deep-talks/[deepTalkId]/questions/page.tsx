@@ -4,7 +4,7 @@ import { useState, useEffect, use } from 'react';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 import * as IoIcons from 'react-icons/io5';
 import ConfirmModal from '@/components/ui/ConfirmModal';
 import SuccessModal from '@/components/ui/SuccessModal';
@@ -90,7 +90,6 @@ export default function DeepTalkQuestionsPage({ params }: PageProps) {
   const categoryId = resolvedParams.id;
   const deepTalkId = resolvedParams.deepTalkId;
   const router = useRouter();
-  const { supabase } = useAuth();
 
   const [deepTalk, setDeepTalk] = useState<DeepTalk | null>(null);
   const [filter, setFilter] = useState<FilterCategory | null>(null);

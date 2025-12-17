@@ -10,7 +10,6 @@ import Button from '@/components/ui/Button';
 import Toast from '@/components/ui/Toast';
 import EmojiOrIconPicker from '@/components/ui/EmojiOrIconPicker';
 import LanguageSelector from '@/components/forms/LanguageSelector';
-import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/useToast';
 import { getLanguageByCode } from '@/constants/languages';
 import * as IoIcons from 'react-icons/io5';
@@ -24,6 +23,7 @@ interface FormData {
   icon: string | null;
   is_active: boolean;
   is_premium: boolean;
+  author: string;
 }
 
 interface PageProps {
@@ -43,7 +43,6 @@ export default function EditChallengePage({ params }: PageProps) {
   const resolvedParams = use(params);
   const categoryId = resolvedParams.id;
   const challengeId = resolvedParams.challengeId;
-  const { supabase } = useAuth();
   const { toast, showToast, hideToast } = useToast();
 
   const [isLoading, setIsLoading] = useState(false);
@@ -63,6 +62,7 @@ export default function EditChallengePage({ params }: PageProps) {
     icon: null,
     is_active: true,
     is_premium: false,
+    author: '',
   });
 
   // Cargar datos del reto
@@ -75,30 +75,23 @@ export default function EditChallengePage({ params }: PageProps) {
     try {
       setIsLoadingData(true);
 
-      // Obtener reto con sus traducciones
-      const { data: challengeData, error: challengeError } = await supabase
-        .from('challenges')
-        .select(`
-          *,
-          challenge_translations (
-            language_code,
-            content
-          )
-        `)
-        .eq('id', challengeId)
-        .single();
+      // Usar Server Action para obtener el challenge con permisos admin
+      const { getChallenge } = await import('@/actions/challenges');
+      const result = await getChallenge(challengeId);
 
-      // Verificar si el reto no existe
-      if (challengeError || !challengeData) {
+      if (!result.success || !result.data) {
         // Redirigir a la página not-found que automáticamente llevará a /challenges/categories
         notFound();
       }
+
+      const challengeData = result.data;
 
       // Llenar formData
       setFormData({
         icon: challengeData.icon,
         is_active: challengeData.is_active,
         is_premium: challengeData.is_premium,
+        author: challengeData.author || '',
       });
 
       // Llenar traducciones
@@ -198,6 +191,7 @@ export default function EditChallengePage({ params }: PageProps) {
         icon: formData.icon || null,
         is_active: formData.is_active,
         is_premium: formData.is_premium,
+        author: formData.author || null,
       };
 
       // Preparar traducciones
@@ -382,18 +376,36 @@ export default function EditChallengePage({ params }: PageProps) {
               </div>
             </div>
 
-            <div className="space-y-3">
-              <label className="flex items-center gap-3 cursor-pointer">
+            <div className="space-y-4">
+              {/* Campo de Autor */}
+              <div>
+                <label className="block text-sm font-medium text-white mb-2">
+                  Autor
+                </label>
                 <input
-                  type="checkbox"
-                  checked={formData.is_premium}
+                  type="text"
+                  placeholder="Nombre del autor (opcional)"
+                  value={formData.author}
                   onChange={(e) =>
-                    setFormData({ ...formData, is_premium: e.target.checked })
+                    setFormData({ ...formData, author: e.target.value })
                   }
-                  className="w-5 h-5 rounded border-[#333333] text-[#BDF522] focus:ring-2 focus:ring-[#BDF522]/50 bg-[#1A1A1A]"
+                  className="w-full px-4 py-2.5 bg-[#1A1A1A] border border-[#333333] rounded-xl text-white placeholder:text-[#666666] focus:outline-none focus:border-[#BDF522]/50 focus:ring-2 focus:ring-[#BDF522]/20"
                 />
-                <span className="text-sm text-white font-medium">
-                  Es contenido Premium
+              </div>
+
+              {/* Checkboxes */}
+              <div className="space-y-3">
+                <label className="flex items-center gap-3 cursor-pointer">
+                  <input
+                    type="checkbox"
+                    checked={formData.is_premium}
+                    onChange={(e) =>
+                      setFormData({ ...formData, is_premium: e.target.checked })
+                    }
+                    className="w-5 h-5 rounded border-[#333333] text-[#BDF522] focus:ring-2 focus:ring-[#BDF522]/50 bg-[#1A1A1A]"
+                  />
+                  <span className="text-sm text-white font-medium">
+                    Es contenido Premium
                 </span>
               </label>
 
@@ -406,6 +418,7 @@ export default function EditChallengePage({ params }: PageProps) {
                 />
                 <span className="text-sm text-white font-medium">Reto Activo</span>
               </label>
+              </div>
             </div>
           </div>
 

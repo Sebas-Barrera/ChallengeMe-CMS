@@ -3,7 +3,6 @@
 import { useState, useEffect, use } from 'react';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useAuth } from '@/contexts/AuthContext';
 import SuccessModal from '@/components/ui/SuccessModal';
 
 interface Challenge {
@@ -12,6 +11,7 @@ interface Challenge {
   icon: string | null;
   is_active: boolean;
   is_premium: boolean;
+  author: string | null;
   translations: {
     [key: string]: {
       content: string;
@@ -37,7 +37,6 @@ interface PageProps {
 export default function CategoryChallengesPage({ params }: PageProps) {
   const resolvedParams = use(params);
   const categoryId = resolvedParams.id;
-  const { supabase } = useAuth();
 
   const [category, setCategory] = useState<Category | null>(null);
   const [challenges, setChallenges] = useState<Challenge[]>([]);
@@ -48,8 +47,10 @@ export default function CategoryChallengesPage({ params }: PageProps) {
 
   // Filtros y búsqueda
   const [searchQuery, setSearchQuery] = useState('');
+  const [searchAuthor, setSearchAuthor] = useState('');
   const [filterStatus, setFilterStatus] = useState<'all' | 'active' | 'inactive'>('all');
   const [filterType, setFilterType] = useState<'all' | 'premium' | 'free'>('all');
+  const [isFilterOpen, setIsFilterOpen] = useState(false);
   const [currentPage, setCurrentPage] = useState(1);
   const itemsPerPage = 20;
 
@@ -62,25 +63,16 @@ export default function CategoryChallengesPage({ params }: PageProps) {
     try {
       setIsLoading(true);
 
-      // 1. Obtener información de la categoría
-      const { data: categoryData, error: categoryError } = await supabase
-        .from('challenge_categories')
-        .select(`
-          id,
-          icon,
-          gradient_colors,
-          challenge_category_translations (
-            language_code,
-            title
-          )
-        `)
-        .eq('id', categoryId)
-        .single();
+      // Usar Server Action para obtener categoría y retos
+      const { getChallengesByCategory } = await import('@/actions/challenges');
+      const result = await getChallengesByCategory(categoryId);
 
-      if (categoryError) {
-        console.error('Error fetching category:', categoryError);
+      if (!result.success) {
+        console.error('Error fetching data:', result.error);
         return;
       }
+
+      const { category: categoryData, challenges: challengesData } = result.data;
 
       // Transformar datos de categoría
       const categoryTranslations: Record<string, { title: string }> = {};
@@ -96,28 +88,6 @@ export default function CategoryChallengesPage({ params }: PageProps) {
         gradient_colors: categoryData.gradient_colors || ['#FF6B6B', '#FF8E53'],
         translations: categoryTranslations,
       });
-
-      // 2. Obtener retos de esta categoría, ordenados por ID para mantener consistencia
-      const { data: challengesData, error: challengesError } = await supabase
-        .from('challenges')
-        .select(`
-          id,
-          challenge_category_id,
-          icon,
-          is_active,
-          is_premium,
-          challenge_translations (
-            language_code,
-            content
-          )
-        `)
-        .eq('challenge_category_id', categoryId)
-        .order('id', { ascending: true });
-
-      if (challengesError) {
-        console.error('Error fetching challenges:', challengesError);
-        return;
-      }
 
       // Transformar datos de retos
       const formattedChallenges: Challenge[] = (challengesData || []).map((challenge: any) => {
@@ -135,6 +105,7 @@ export default function CategoryChallengesPage({ params }: PageProps) {
           icon: challenge.icon,
           is_active: challenge.is_active,
           is_premium: challenge.is_premium,
+          author: challenge.author || null,
           translations,
         };
       });
@@ -188,10 +159,14 @@ export default function CategoryChallengesPage({ params }: PageProps) {
 
   // Filtrar y paginar retos
   const filteredChallenges = challenges.filter((challenge) => {
-    // Filtro de búsqueda
+    // Filtro de búsqueda por contenido
     const content = challenge.translations.es?.content ||
                    challenge.translations[Object.keys(challenge.translations)[0]]?.content || '';
     const matchesSearch = content.toLowerCase().includes(searchQuery.toLowerCase());
+
+    // Filtro de búsqueda por autor
+    const author = challenge.author || '';
+    const matchesAuthor = author.toLowerCase().includes(searchAuthor.toLowerCase());
 
     // Filtro de estado
     const matchesStatus =
@@ -205,7 +180,7 @@ export default function CategoryChallengesPage({ params }: PageProps) {
       filterType === 'premium' ? challenge.is_premium :
       !challenge.is_premium;
 
-    return matchesSearch && matchesStatus && matchesType;
+    return matchesSearch && matchesAuthor && matchesStatus && matchesType;
   });
 
   // Paginación
@@ -217,7 +192,7 @@ export default function CategoryChallengesPage({ params }: PageProps) {
   // Reset página cuando cambian los filtros
   useEffect(() => {
     setCurrentPage(1);
-  }, [searchQuery, filterStatus, filterType]);
+  }, [searchQuery, searchAuthor, filterStatus, filterType]);
 
   if (isLoading || !category) {
     return (
@@ -376,123 +351,203 @@ export default function CategoryChallengesPage({ params }: PageProps) {
 
         {/* Búsqueda y Filtros */}
         <div className="bg-[#2A2A2A] border border-[#333333] rounded-2xl p-6 shadow-lg shadow-black/20 mb-6">
-          <div className="flex flex-col md:flex-row gap-4">
-            {/* Búsqueda */}
-            <div className="flex-1">
-              <div className="relative">
-                <svg
-                  className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#666666]"
-                  fill="none"
-                  stroke="currentColor"
-                  viewBox="0 0 24 24"
-                >
-                  <path
-                    strokeLinecap="round"
-                    strokeLinejoin="round"
-                    strokeWidth={2}
-                    d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
-                  />
-                </svg>
-                <input
-                  type="text"
-                  placeholder="Buscar retos..."
-                  value={searchQuery}
-                  onChange={(e) => setSearchQuery(e.target.value)}
-                  className="w-full pl-10 pr-4 py-2.5 bg-[#1A1A1A] border border-[#333333] rounded-xl text-white placeholder-[#666666] focus:outline-none focus:ring-2 focus:ring-[#BDF522]/50 focus:border-[#BDF522] transition-all"
-                />
-                {searchQuery && (
-                  <button
-                    onClick={() => setSearchQuery('')}
-                    className="absolute right-3 top-1/2 -translate-y-1/2 text-[#666666] hover:text-white transition-colors"
+          <div className="flex flex-col gap-4">
+            {/* Búsquedas */}
+            <div className="flex flex-col sm:flex-row gap-4">
+              {/* Búsqueda por contenido */}
+              <div className="flex-1">
+                <div className="relative">
+                  <svg
+                    className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#666666]"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
                   >
-                    <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
-                    </svg>
-                  </button>
-                )}
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z"
+                    />
+                  </svg>
+                  <input
+                    type="text"
+                    placeholder="Buscar por contenido..."
+                    value={searchQuery}
+                    onChange={(e) => setSearchQuery(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 bg-[#1A1A1A] border border-[#333333] rounded-xl text-white placeholder-[#666666] focus:outline-none focus:ring-2 focus:ring-[#BDF522]/50 focus:border-[#BDF522] transition-all"
+                  />
+                  {searchQuery && (
+                    <button
+                      onClick={() => setSearchQuery('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#666666] hover:text-white transition-colors"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
+              </div>
+
+              {/* Búsqueda por autor */}
+              <div className="flex-1">
+                <div className="relative">
+                  <svg
+                    className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-[#666666]"
+                    fill="none"
+                    stroke="currentColor"
+                    viewBox="0 0 24 24"
+                  >
+                    <path
+                      strokeLinecap="round"
+                      strokeLinejoin="round"
+                      strokeWidth={2}
+                      d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                    />
+                  </svg>
+                  <input
+                    type="text"
+                    placeholder="Buscar por autor..."
+                    value={searchAuthor}
+                    onChange={(e) => setSearchAuthor(e.target.value)}
+                    className="w-full pl-10 pr-4 py-2.5 bg-[#1A1A1A] border border-[#333333] rounded-xl text-white placeholder-[#666666] focus:outline-none focus:ring-2 focus:ring-[#BDF522]/50 focus:border-[#BDF522] transition-all"
+                  />
+                  {searchAuthor && (
+                    <button
+                      onClick={() => setSearchAuthor('')}
+                      className="absolute right-3 top-1/2 -translate-y-1/2 text-[#666666] hover:text-white transition-colors"
+                    >
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+                      </svg>
+                    </button>
+                  )}
+                </div>
               </div>
             </div>
 
-            {/* Filtro de Estado */}
-            <div className="flex gap-2">
+            {/* Botón de filtros */}
+            <div className="relative flex justify-end">
               <button
-                onClick={() => setFilterStatus('all')}
-                className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                  filterStatus === 'all'
-                    ? 'bg-[#BDF522] text-black'
-                    : 'bg-[#1A1A1A] border border-[#333333] text-[#999999] hover:border-[#BDF522]/50 hover:text-white'
-                }`}
+                onClick={() => setIsFilterOpen(!isFilterOpen)}
+                className="px-3 py-2.5 bg-[#1A1A1A] hover:bg-[#333333] border border-[#333333] text-[#999999] hover:text-white rounded-xl text-sm font-medium transition-colors flex items-center gap-2"
               >
-                Todos
+                <svg className="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M3 4a1 1 0 011-1h16a1 1 0 011 1v2.586a1 1 0 01-.293.707l-6.414 6.414a1 1 0 00-.293.707V17l-4 4v-6.586a1 1 0 00-.293-.707L3.293 7.293A1 1 0 013 6.586V4z" />
+                </svg>
+                Filtrar
               </button>
-              <button
-                onClick={() => setFilterStatus('active')}
-                className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                  filterStatus === 'active'
-                    ? 'bg-green-500 text-white'
-                    : 'bg-[#1A1A1A] border border-[#333333] text-[#999999] hover:border-green-500/50 hover:text-white'
-                }`}
-              >
-                Activos
-              </button>
-              <button
-                onClick={() => setFilterStatus('inactive')}
-                className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                  filterStatus === 'inactive'
-                    ? 'bg-[#666666] text-white'
-                    : 'bg-[#1A1A1A] border border-[#333333] text-[#999999] hover:border-[#666666]/50 hover:text-white'
-                }`}
-              >
-                Inactivos
-              </button>
-            </div>
 
-            {/* Filtro de Tipo */}
-            <div className="flex gap-2">
-              <button
-                onClick={() => setFilterType('all')}
-                className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                  filterType === 'all'
-                    ? 'bg-[#BDF522] text-black'
-                    : 'bg-[#1A1A1A] border border-[#333333] text-[#999999] hover:border-[#BDF522]/50 hover:text-white'
-                }`}
-              >
-                Todos
-              </button>
-              <button
-                onClick={() => setFilterType('premium')}
-                className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                  filterType === 'premium'
-                    ? 'bg-[#7B46F8] text-white'
-                    : 'bg-[#1A1A1A] border border-[#333333] text-[#999999] hover:border-[#7B46F8]/50 hover:text-white'
-                }`}
-              >
-                Premium
-              </button>
-              <button
-                onClick={() => setFilterType('free')}
-                className={`px-4 py-2.5 rounded-xl text-sm font-medium transition-all ${
-                  filterType === 'free'
-                    ? 'bg-blue-500 text-white'
-                    : 'bg-[#1A1A1A] border border-[#333333] text-[#999999] hover:border-blue-500/50 hover:text-white'
-                }`}
-              >
-                Gratis
-              </button>
+              {/* Dropdown de filtros */}
+              {isFilterOpen && (
+                <>
+                  {/* Backdrop */}
+                  <div
+                    className="fixed inset-0 z-10"
+                    onClick={() => setIsFilterOpen(false)}
+                  />
+
+                  {/* Menu */}
+                  <div className="absolute right-0 top-12 z-20 bg-[#2A2A2A] border border-[#333333] rounded-xl shadow-2xl shadow-black/50 p-4 min-w-[280px]">
+                    {/* Estado */}
+                    <div className="mb-4">
+                      <label className="block text-xs font-medium text-[#999999] mb-2">
+                        Estado
+                      </label>
+                      <div className="space-y-2">
+                        <button
+                          onClick={() => setFilterStatus('all')}
+                          className={`w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
+                            filterStatus === 'all'
+                              ? 'bg-[#BDF522]/20 border-2 border-[#BDF522] text-[#BDF522]'
+                              : 'bg-[#1A1A1A] hover:bg-[#333333] text-white'
+                          }`}
+                        >
+                          Todos
+                        </button>
+                        <button
+                          onClick={() => setFilterStatus('active')}
+                          className={`w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
+                            filterStatus === 'active'
+                              ? 'bg-green-500/20 border-2 border-green-500 text-green-500'
+                              : 'bg-[#1A1A1A] hover:bg-[#333333] text-white'
+                          }`}
+                        >
+                          Activos
+                        </button>
+                        <button
+                          onClick={() => setFilterStatus('inactive')}
+                          className={`w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
+                            filterStatus === 'inactive'
+                              ? 'bg-[#666666]/20 border-2 border-[#666666] text-[#999999]'
+                              : 'bg-[#1A1A1A] hover:bg-[#333333] text-white'
+                          }`}
+                        >
+                          Inactivos
+                        </button>
+                      </div>
+                    </div>
+
+                    {/* Divisor */}
+                    <div className="h-px bg-[#333333] mb-4"></div>
+
+                    {/* Tipo */}
+                    <div>
+                      <label className="block text-xs font-medium text-[#999999] mb-2">
+                        Tipo
+                      </label>
+                      <div className="space-y-2">
+                        <button
+                          onClick={() => setFilterType('all')}
+                          className={`w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
+                            filterType === 'all'
+                              ? 'bg-[#BDF522]/20 border-2 border-[#BDF522] text-[#BDF522]'
+                              : 'bg-[#1A1A1A] hover:bg-[#333333] text-white'
+                          }`}
+                        >
+                          Todos
+                        </button>
+                        <button
+                          onClick={() => setFilterType('premium')}
+                          className={`w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
+                            filterType === 'premium'
+                              ? 'bg-[#7B46F8]/20 border-2 border-[#7B46F8] text-[#7B46F8]'
+                              : 'bg-[#1A1A1A] hover:bg-[#333333] text-white'
+                          }`}
+                        >
+                          Premium
+                        </button>
+                        <button
+                          onClick={() => setFilterType('free')}
+                          className={`w-full px-3 py-2 rounded-lg text-sm font-medium transition-colors text-left ${
+                            filterType === 'free'
+                              ? 'bg-blue-500/20 border-2 border-blue-500 text-blue-500'
+                              : 'bg-[#1A1A1A] hover:bg-[#333333] text-white'
+                          }`}
+                        >
+                          Gratis
+                        </button>
+                      </div>
+                    </div>
+                  </div>
+                </>
+              )}
             </div>
           </div>
 
           {/* Contador de resultados */}
-          <div className="mt-4 flex items-center justify-between text-sm">
+          <div className="flex items-center justify-between text-sm">
             <p className="text-[#999999]">
               Mostrando <span className="font-semibold text-white">{paginatedChallenges.length}</span> de{' '}
               <span className="font-semibold text-white">{filteredChallenges.length}</span> retos
-              {searchQuery && ` (filtrados de ${challenges.length} totales)`}
+              {(searchQuery || searchAuthor) && ` (filtrados de ${challenges.length} totales)`}
             </p>
-            {(searchQuery || filterStatus !== 'all' || filterType !== 'all') && (
+            {(searchQuery || searchAuthor || filterStatus !== 'all' || filterType !== 'all') && (
               <button
                 onClick={() => {
                   setSearchQuery('');
+                  setSearchAuthor('');
                   setFilterStatus('all');
                   setFilterType('all');
                 }}
@@ -524,9 +579,29 @@ export default function CategoryChallengesPage({ params }: PageProps) {
                     {/* Content */}
                     <div className="flex-1 min-w-0">
                       <div className="flex items-start justify-between gap-3 mb-2">
-                        <p className="text-sm text-white font-medium leading-relaxed">
-                          {challenge.translations.es?.content || challenge.translations[Object.keys(challenge.translations)[0]]?.content || 'Sin contenido'}
-                        </p>
+                        <div className="flex-1 min-w-0">
+                          <p className="text-sm text-white font-medium leading-relaxed">
+                            {challenge.translations.es?.content || challenge.translations[Object.keys(challenge.translations)[0]]?.content || 'Sin contenido'}
+                          </p>
+                          {challenge.author && (
+                            <p className="text-xs text-[#CCCCCC] mt-1.5 flex items-center gap-1.5 font-medium">
+                              <svg
+                                className="w-3.5 h-3.5 text-[#BDF522]"
+                                fill="none"
+                                stroke="currentColor"
+                                viewBox="0 0 24 24"
+                              >
+                                <path
+                                  strokeLinecap="round"
+                                  strokeLinejoin="round"
+                                  strokeWidth={2}
+                                  d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
+                                />
+                              </svg>
+                              <span>Por: {challenge.author}</span>
+                            </p>
+                          )}
+                        </div>
                         <div className="flex items-center gap-1.5 flex-shrink-0">
                           {challenge.is_premium && (
                             <span className="px-2 py-0.5 bg-[#7B46F8]/10 border border-[#7B46F8]/30 text-[#7B46F8] rounded-md text-xs font-bold">
@@ -670,7 +745,7 @@ export default function CategoryChallengesPage({ params }: PageProps) {
               </div>
             )}
           </div>
-        ) : searchQuery || filterStatus !== 'all' || filterType !== 'all' ? (
+        ) : searchQuery || searchAuthor || filterStatus !== 'all' || filterType !== 'all' ? (
           /* No results from filters */
           <div className="bg-[#2A2A2A] border border-[#333333] rounded-2xl p-12 text-center shadow-lg shadow-black/20">
             <div className="w-20 h-20 mx-auto mb-6 rounded-2xl bg-gradient-to-br from-[#666666]/20 to-[#666666]/5 border border-[#666666]/30 flex items-center justify-center">
@@ -697,6 +772,7 @@ export default function CategoryChallengesPage({ params }: PageProps) {
             <button
               onClick={() => {
                 setSearchQuery('');
+                setSearchAuthor('');
                 setFilterStatus('all');
                 setFilterType('all');
               }}

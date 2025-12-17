@@ -5,7 +5,6 @@ import { useRouter, useParams } from "next/navigation";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { useAuth } from "@/contexts/AuthContext";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import IconPicker from "@/components/ui/IconPicker";
@@ -33,7 +32,6 @@ interface FormData {
 export default function EditDeepTalkCategoryPage() {
   const router = useRouter();
   const params = useParams();
-  const { supabase } = useAuth();
   const categoryId = params.id as string;
 
   const [isLoading, setIsLoading] = useState(false);

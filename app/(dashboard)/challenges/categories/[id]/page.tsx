@@ -12,7 +12,6 @@ import Toast from '@/components/ui/Toast';
 import IconPicker from '@/components/ui/IconPicker';
 import LanguageSelector from '@/components/forms/LanguageSelector';
 import TranslationFields from '@/components/forms/TranslationFields';
-import { useAuth } from '@/contexts/AuthContext';
 import { useToast } from '@/hooks/useToast';
 
 interface Translation {
@@ -34,13 +33,13 @@ interface FormData {
   is_premium: boolean;
   is_active: boolean;
   sort_order: number;
+  author: string;
 }
 
 export default function EditCategoryPage() {
   const router = useRouter();
   const params = useParams();
   const categoryId = params.id as string;
-  const { supabase } = useAuth();
   const { toast, showToast, hideToast } = useToast();
 
   const [isLoading, setIsLoading] = useState(false);
@@ -64,6 +63,7 @@ export default function EditCategoryPage() {
     is_premium: false,
     is_active: true,
     sort_order: 0,
+    author: '',
   });
 
   // Cargar datos de la categoría
@@ -75,26 +75,16 @@ export default function EditCategoryPage() {
     try {
       setIsLoadingData(true);
 
-      // Obtener categoría con sus traducciones
-      const { data: categoryData, error: categoryError } = await supabase
-        .from('challenge_categories')
-        .select(`
-          *,
-          challenge_category_translations (
-            language_code,
-            title,
-            description,
-            instructions,
-            tags
-          )
-        `)
-        .eq('id', categoryId)
-        .single();
+      // Usar Server Action para obtener la categoría con permisos admin
+      const { getChallengeCategory } = await import('@/actions/challenges');
+      const result = await getChallengeCategory(categoryId);
 
-      if (categoryError || !categoryData) {
+      if (!result.success || !result.data) {
         // Redirigir a la página not-found que automáticamente llevará a /challenges/categories
         notFound();
       }
+
+      const categoryData = result.data;
 
       // Llenar formData
       setFormData({
@@ -107,7 +97,8 @@ export default function EditCategoryPage() {
         age_rating: categoryData.age_rating || 'ALL',
         is_premium: categoryData.is_premium,
         is_active: categoryData.is_active,
-        sort_order: (categoryData as any).sort_order || 0,
+        sort_order: categoryData.sort_order || 0,
+        author: categoryData.author || '',
       });
 
       // Llenar traducciones
@@ -254,6 +245,7 @@ export default function EditCategoryPage() {
         is_premium: formData.is_premium,
         is_active: formData.is_active,
         sort_order: formData.sort_order,
+        author: formData.author || null,
       };
 
       // Preparar traducciones
@@ -468,6 +460,16 @@ export default function EditCategoryPage() {
                   setFormData({ ...formData, max_players: parseInt(e.target.value) })
                 }
                 required
+              />
+
+              <Input
+                label="Autor"
+                type="text"
+                placeholder="Nombre del autor (opcional)"
+                value={formData.author}
+                onChange={(e) =>
+                  setFormData({ ...formData, author: e.target.value })
+                }
               />
 
               <Input

@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 
 interface DailyTipTranslation {
@@ -22,7 +22,6 @@ interface DailyTip {
 type FilterStatus = 'all' | 'active' | 'inactive';
 
 export default function DailyTipsPage() {
-  const { supabase } = useAuth();
   const router = useRouter();
   const [dailyTips, setDailyTips] = useState<DailyTip[]>([]);
   const [isLoading, setIsLoading] = useState(true);

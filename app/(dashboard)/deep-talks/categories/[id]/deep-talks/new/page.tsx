@@ -3,7 +3,6 @@
 import { useState, use, useEffect } from "react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useAuth } from "@/contexts/AuthContext";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import IconPicker from "@/components/ui/IconPicker";
@@ -45,7 +44,6 @@ export default function NewDeepTalkPage({ params }: PageProps) {
   const resolvedParams = use(params);
   const categoryId = resolvedParams.id;
   const router = useRouter();
-  const { supabase } = useAuth();
   const [isLoading, setIsLoading] = useState(false);
   const [isCategoryPremium, setIsCategoryPremium] = useState<boolean>(false);
 

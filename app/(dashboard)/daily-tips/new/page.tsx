@@ -1,7 +1,7 @@
 'use client';
 
 import { useState } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import LanguageSelector from '@/components/forms/LanguageSelector';
@@ -15,7 +15,6 @@ interface Translation {
 }
 
 export default function NewDailyTipPage() {
-  const { supabase } = useAuth();
   const router = useRouter();
   const [selectedLanguages, setSelectedLanguages] = useState<string[]>(['es', 'en']);
   const [translations, setTranslations] = useState<Record<string, Translation>>({

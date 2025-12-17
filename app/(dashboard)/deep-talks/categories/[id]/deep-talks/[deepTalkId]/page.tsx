@@ -5,7 +5,6 @@ import { useRouter } from "next/navigation";
 import { notFound } from "next/navigation";
 import Link from "next/link";
 import Image from "next/image";
-import { useAuth } from "@/contexts/AuthContext";
 import Input from "@/components/ui/Input";
 import Button from "@/components/ui/Button";
 import IconPicker from "@/components/ui/IconPicker";
@@ -40,7 +39,6 @@ export default function EditDeepTalkPage({ params }: PageProps) {
   const categoryId = resolvedParams.id;
   const deepTalkId = resolvedParams.deepTalkId;
   const router = useRouter();
-  const { supabase } = useAuth();
 
   const [isLoading, setIsLoading] = useState(false);
   const [isFetching, setIsFetching] = useState(true);

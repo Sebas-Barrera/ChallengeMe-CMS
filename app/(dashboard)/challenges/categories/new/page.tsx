@@ -30,6 +30,7 @@ interface FormData {
   age_rating: 'ALL' | 'TEEN' | 'ADULT';
   is_premium: boolean;
   is_active: boolean;
+  author: string;
 }
 
 export default function NewCategoryPage() {
@@ -77,6 +78,7 @@ export default function NewCategoryPage() {
     age_rating: 'ALL',
     is_premium: false,
     is_active: true,
+    author: '',
   });
 
   const handleTranslationChange = (
@@ -196,6 +198,7 @@ export default function NewCategoryPage() {
         age_rating: formData.age_rating,
         is_premium: formData.is_premium,
         is_active: formData.is_active,
+        author: formData.author || null,
       };
 
       // Preparar traducciones
@@ -368,6 +371,16 @@ export default function NewCategoryPage() {
                   setFormData({ ...formData, max_players: parseInt(e.target.value) })
                 }
                 required
+              />
+
+              <Input
+                label="Autor"
+                type="text"
+                placeholder="Nombre del autor (opcional)"
+                value={formData.author}
+                onChange={(e) =>
+                  setFormData({ ...formData, author: e.target.value })
+                }
               />
 
               <Input

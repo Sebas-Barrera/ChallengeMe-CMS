@@ -3,7 +3,7 @@
 import Link from 'next/link';
 import Image from 'next/image';
 import { useState, useEffect } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 import * as IoIcons from 'react-icons/io5';
 import Toast from '@/components/ui/Toast';
 
@@ -62,7 +62,6 @@ const getIonIcon = (iconName: string | null) => {
 };
 
 export default function DeepTalkCategoriesPage() {
-  const { supabase } = useAuth();
   const [filters, setFilters] = useState<Filter[]>([]);
   const [deepTalks, setDeepTalks] = useState<DeepTalk[]>([]);
   const [isLoading, setIsLoading] = useState(true);

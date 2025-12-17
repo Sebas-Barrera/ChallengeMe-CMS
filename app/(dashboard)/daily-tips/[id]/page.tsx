@@ -1,7 +1,7 @@
 'use client';
 
 import { useState, useEffect, use } from 'react';
-import { useAuth } from '@/contexts/AuthContext';
+import { supabase } from '@/lib/supabase';
 import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import LanguageSelector from '@/components/forms/LanguageSelector';
@@ -28,7 +28,6 @@ interface PageProps {
 export default function EditDailyTipPage({ params }: PageProps) {
   const resolvedParams = use(params);
   const tipId = resolvedParams.id;
-  const { supabase } = useAuth();
   const router = useRouter();
   const [tip, setTip] = useState<DailyTip | null>(null);
   const [isLoading, setIsLoading] = useState(true);

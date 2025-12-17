@@ -1,6 +1,6 @@
 category_id,icon,is_active,is_premium,text_es,text_en
-1b516dbe-1b9b-4762-97d4-2a06c682747e,musical-notes,true,false,Canta una canción completa frente a tus amigos o familiares,Sing a complete song in front of your friends or family
-1b516dbe-1b9b-4762-97d4-2a06c682747e,microphone,true,false,Improvisa una canción sobre un tema aleatorio durante 30 segundos,Improvise a song about a random topic for 30 seconds
-bf679e7e-6f1d-4d70-803e-4275b361746f,headset,true,true,Aprende a tocar una canción nueva en un instrumento en 24 horas,Learn to play a new song on an instrument within 24 hours
-bf679e7e-6f1d-4d70-803e-4275b361746f,beer,true,false,Cuenta tu mejor anécdota de fiesta,Tell your best party story
-bf679e7e-6f1d-4d70-803e-4275b361746f,game-controller,true,false,Reta a alguien a un duelo de piedra papel o tijera - el perdedor toma un shot,Challenge someone to rock paper scissors - loser takes a shot
+344d1745-35d0-4172-b735-ac90ada30ca5,musical-notes,true,false,Canta una canción completa frente a tus amigos o familiares,Sing a complete song in front of your friends or family
+344d1745-35d0-4172-b735-ac90ada30ca5,microphone,true,false,Improvisa una canción sobre un tema aleatorio durante 30 segundos,Improvise a song about a random topic for 30 seconds
+683e8849-553e-4e50-a352-bfd99abe8b05,headset,true,true,Aprende a tocar una canción nueva en un instrumento en 24 horas,Learn to play a new song on an instrument within 24 hours
+683e8849-553e-4e50-a352-bfd99abe8b05,beer,true,false,Cuenta tu mejor anécdota de fiesta,Tell your best party story
+683e8849-553e-4e50-a352-bfd99abe8b05,game-controller,true,false,Reta a alguien a un duelo de piedra papel o tijera - el perdedor toma un shot,Challenge someone to rock paper scissors - loser takes a shot

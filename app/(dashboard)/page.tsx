@@ -1,26 +1,9 @@
 'use client';
 
-import { useRouter } from 'next/navigation';
 import Link from 'next/link';
 import Image from 'next/image';
-import { useAuth } from '@/contexts/AuthContext';
 
 export default function DashboardPage() {
-  const router = useRouter();
-  const { user, signOut } = useAuth();
-
-  const handleLogout = async () => {
-    await signOut();
-    router.push('/login');
-  };
-
-  if (!user) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-bg-primary">
-        <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-[#BDF522]"></div>
-      </div>
-    );
-  }
 
   return (
     <div className="min-h-screen bg-[#1A1A1A] relative overflow-hidden">
@@ -73,31 +56,11 @@ export default function DashboardPage() {
                 </div>
               </Link>
 
-              {/* User info y logout */}
+              {/* Admin badge */}
               <div className="flex items-center gap-4">
-                <div className="hidden sm:block text-right">
-                  <p className="text-sm font-semibold text-white">Admin</p>
-                  <p className="text-xs text-[#999999]">{user.email}</p>
+                <div className="px-4 py-2 bg-[#BDF522]/10 border border-[#BDF522]/30 rounded-xl">
+                  <p className="text-sm font-semibold text-[#BDF522]">CMS Admin</p>
                 </div>
-                <button
-                  onClick={handleLogout}
-                  className="px-5 py-2.5 bg-[#2A2A2A] hover:bg-[#333333] border border-[#333333] hover:border-[#BDF522]/30 text-white rounded-xl text-sm font-medium transition-all duration-200 flex items-center gap-2 shadow-lg shadow-black/30"
-                >
-                  <svg
-                    className="w-4 h-4"
-                    fill="none"
-                    stroke="currentColor"
-                    viewBox="0 0 24 24"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth={2}
-                      d="M17 16l4-4m0 0l-4-4m4 4H7m6 4v1a3 3 0 01-3 3H6a3 3 0 01-3-3V7a3 3 0 013-3h4a3 3 0 013 3v1"
-                    />
-                  </svg>
-                  <span className="hidden sm:inline">Cerrar Sesión</span>
-                </button>
               </div>
             </div>
           </div>

@@ -20,6 +20,7 @@ interface FormData {
   icon: string;
   is_active: boolean;
   is_premium: boolean;
+  author: string;
 }
 
 interface PageProps {
@@ -53,6 +54,7 @@ export default function NewChallengePage({ params }: PageProps) {
     icon: '',
     is_active: true,
     is_premium: false,
+    author: '',
   });
 
   const handleTranslationChange = (languageCode: string, content: string) => {
@@ -127,6 +129,7 @@ export default function NewChallengePage({ params }: PageProps) {
         icon: formData.icon || null,
         is_active: formData.is_active,
         is_premium: formData.is_premium,
+        author: formData.author || null,
       };
 
       // Preparar traducciones
@@ -283,6 +286,22 @@ export default function NewChallengePage({ params }: PageProps) {
             </div>
 
             <div className="grid grid-cols-1 gap-4">
+              {/* Campo de Autor */}
+              <div>
+                <label className="block text-sm font-medium text-white mb-2">
+                  Autor
+                </label>
+                <input
+                  type="text"
+                  placeholder="Nombre del autor (opcional)"
+                  value={formData.author}
+                  onChange={(e) =>
+                    setFormData({ ...formData, author: e.target.value })
+                  }
+                  className="w-full px-4 py-2.5 bg-[#1A1A1A] border border-[#333333] rounded-xl text-white placeholder:text-[#666666] focus:outline-none focus:border-[#BDF522]/50 focus:ring-2 focus:ring-[#BDF522]/20"
+                />
+              </div>
+
               {/* Checkboxes */}
               <div className="space-y-3">
                 <label className="flex items-center gap-3 cursor-pointer">
